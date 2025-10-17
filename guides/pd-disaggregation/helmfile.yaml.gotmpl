@@ -12,6 +12,9 @@ environments:
   gke: &GKE
       values:
       - ../prereq/gateway-provider/common-configurations/gke.yaml
+  gke-rdma: &GKE_RDMA
+    values:
+      - ../prereq/gateway-provider/common-configurations/gke.yaml
   xpu: &XPU
     values:
       - ../prereq/gateway-provider/common-configurations/istio.yaml
@@ -22,6 +25,8 @@ environments:
 
 {{- $ns := .Namespace | default "llm-d-pd" -}}
 {{- $rn := (env "RELEASE_NAME_POSTFIX") | default "pd" -}}
+{{- $baseValues := fromYaml (readFile "ms-pd/values.yaml") -}}
+{{- $baseImage := (index $baseValues.decode.containers 0).image -}}
 
 repositories:
   - name: llm-d-modelservice
@@ -52,7 +57,7 @@ releases:
     values:
       - gaie-pd/values.yaml
     # Apply provider name if on GKE
-    {{- if or (eq .Environment.Name "gke") (eq .Environment.Name "gke_tpu") }}
+    {{- if or (eq .Environment.Name "gke") (eq .Environment.Name "gke_tpu") (eq .Environment.Name "gke-rdma") }}
       - provider:
           name: {{ .Environment.Values.provider.name }}
         inferencePool:
@@ -96,6 +101,9 @@ releases:
       - ms-pd/values_xpu.yaml
     {{- else }}
       - ms-pd/values.yaml
+      {{- if eq .Environment.Name "gke-rdma" }}
+        - ms-pd/values_gke_rdma.yaml
+      {{- end }}
     {{- end }}
     {{- if or (eq .Environment.Name "istioBench") (eq .Environment.Name "default") }}
       - routing: 
@@ -107,7 +115,14 @@ releases:
         value: {{ printf "gaie-%s" $rn | quote }}
       - name: "routing.parentRefs[0].name"
         value: {{ printf "infra-%s-inference-gateway" $rn | quote }}
-    {{- if eq .Environment.Name "gke" }}
+    # Get the current vllm image name from base, and apply to gke-rdma
+    {{- if (eq .Environment.Name "gke-rdma") }}
+      - name: "decode.containers[0].image"
+        value: {{ $baseImage }}
+      - name: "prefill.containers[0].image"
+        value: {{ $baseImage }}
+    {{- end }}
+    {{- if or (eq .Environment.Name "gke") (eq .Environment.Name "gke-rdma") }}
       - name: 'decode.containers[0].resources.limits.rdma/ib'
         value: "null"
       - name: 'decode.containers[0].resources.requests.rdma/ib'
