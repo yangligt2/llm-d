@@ -96,6 +96,9 @@ releases:
       - ms-pd/values_xpu.yaml
     {{- else }}
       - ms-pd/values.yaml
+      {{- if eq .Environment.Name "gke" }}
+      - ms-pd/values_gke_rdma.yaml
+      {{- end }}
     {{- end }}
     {{- if or (eq .Environment.Name "istioBench") (eq .Environment.Name "default") }}
       - routing: 
