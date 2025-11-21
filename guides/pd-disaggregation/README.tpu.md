@@ -18,145 +18,11 @@ The following steps detail a fresh deployment of a PD disaggregation service on 
 
 ### Step 1 Prepare GKE Cluster
 
-#### 1.1 Create GKE Cluster
+Please refer to [llm-d on GKE Documentation](../../docs/infra-providers/gke/README.md) to properly setup GKE cluster and GKE Inference Gateway.
 
-Create the GKE cluster using the command below. For more details on GKE clusters, TPU support, and alternative creation methods (Console, Terraform), refer to the [llm-d on GKE Documentation](../../docs/infra-providers/gke/README.md) and [TPUs in GKE documentation](https://cloud.google.com/kubernetes-engine/docs/how-to/tpus).
+### Step 2 Install the Stack
 
-```bash
-export LOCATION=<YOUR_GCP_REGION>
-export CLUSTER_NAME=tpu-pd-demo
-
-gcloud container clusters create $CLUSTER_NAME \
---location=$LOCATION \
---gateway-api=standard \
---monitoring=SYSTEM,DCGM
-```
-
-#### 1.2 Create a TPU Node Pool
-
-Create a node pool. This example uses three ct6e-standard-8t nodes with spot reservation. We will configure these as 2 Prefill and 1 Decode (2P1D) to demonstrate how P/D disaggregation allows tuning workers to balance ISL/OSL ratios. See [creating TPU node pools](https://cloud.google.com/kubernetes-engine/docs/how-to/tpus#create-node-pool) for details.
-
-```bash
-gcloud container node-pools create v6e-8-70 \
-	--location=$LOCATION \
-	--num-nodes=3 \
-	--machine-type=ct6e-standard-8t \
-	--cluster=$CLUSTER_NAME \
-	--spot \
-	--disk-size=300
-```
-
-#### 1.3 Configure kubectl
-Once the GKE cluster and node pool has been created, configure `kubectl` to communicate with your cluster
-```bash
-gcloud container clusters get-credentials $CLUSTER_NAME --location=$LOCATION
-```
-
-#### 1.4 Setup authorization to scrap metrics
-Apply the following manifest to authorize metric scraping:
-```bash
-kubectl apply -f - <<EOF
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: inference-gateway-metrics-reader
-rules:
-- nonResourceURLs:
-  - /metrics
-  verbs:
-  - get
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: inference-gateway-sa-metrics-reader
-  namespace: default
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: inference-gateway-sa-metrics-reader-role-binding
-  namespace: default
-subjects:
-- kind: ServiceAccount
-  name: inference-gateway-sa-metrics-reader
-  namespace: default
-roleRef:
-  kind: ClusterRole
-  name: inference-gateway-metrics-reader
-  apiGroup: rbac.authorization.k8s.io
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: inference-gateway-sa-metrics-reader-secret
-  namespace: default
-  annotations:
-    kubernetes.io/service-account.name: inference-gateway-sa-metrics-reader
-type: kubernetes.io/service-account-token
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: inference-gateway-sa-metrics-reader-secret-read
-rules:
-- resources:
-  - secrets
-  apiGroups: [""]
-  verbs: ["get", "list", "watch"]
-  resourceNames: ["inference-gateway-sa-metrics-reader-secret"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: gmp-system:collector:inference-gateway-sa-metrics-reader-secret-read
-  namespace: default
-roleRef:
-  name: inference-gateway-sa-metrics-reader-secret-read
-  kind: ClusterRole
-  apiGroup: rbac.authorization.k8s.io
-subjects:
-- name: collector
-  namespace: gmp-system
-  kind: ServiceAccount
-EOF
-```
-
-
-### Step 2 Deploy GKE Inference Gateway
-GKE Inference Gateway enhances Google Kubernetes Engine (GKE) Gateway to optimize the serving of generative AI applications and workloads on GKE. Below steps show how to deploy GKE Inference Gateway for this demo. To learn more about GKE Inference Gateway, refer to this document: https://cloud.google.com/kubernetes-engine/docs/how-to/deploy-gke-inference-gateway
-
-#### 2.1 Create Proxy-only subnet
-Run below command to create a proxy-only subnet required for the GKE Gateway. For more details, refer to this [document](https://cloud.google.com/kubernetes-engine/docs/how-to/deploying-gateways#configure_a_proxy-only_subnet)
-
-```bash
-export CIDR_RANGE=<YOUR_IP_RANGE> # Make sure the IP range does not overlap with other subnets
-export VPC_NETWORK_NAME=<YOUR_VPC_NETWORK_NAME>
-export REGION=<YOUR_GCP_REGION>
-
-
-gcloud compute networks subnets create proxy-only-subnet \
-    --purpose=REGIONAL_MANAGED_PROXY \
-    --role=ACTIVE \
-    --region=$REGION \
-    --network=$VPC_NETWORK_NAME \
-    --range=$CIDR_RANGE
-```
-
-#### 2.2 Install the Inference Extension CRDs
-Install the necessary Custom Resource Definitions (CRDs) for the inference extension. To learn more, check the [Inference Extension Websit](https://gateway-api-inference-extension.sigs.k8s.io/)
-
-```bash
-kubectl apply -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/releases/download/v1.0.0/manifests.yaml
-```
-
-#### 2.3 Create a Gateway
-A Gateway resource represents a data plane that routes traffic in Kubernetes. This step is automatically integrated into the Helmfile stack installed in the next section; no manual action is required here.
-
-### Step 3 Install the Stack
-
-#### 3.1 Create Namespace
+#### 2.1 Create Namespace
 
 Create the namespace for the deployment. You may use a custom namespace if preferred.
 
@@ -166,7 +32,7 @@ export NAMESPACE=llm-d-pd # Or any namespace your heart desires
 kubectl create namespace ${NAMESPACE}
 ```
 
-#### 3.2 Create HF Token Secret
+#### 2.2 Create HF Token Secret
 
 Create a Kubernetes secret to store your Hugging Face token:
 
@@ -178,7 +44,7 @@ kubectl create secret generic llm-d-hf-token \
   --from-literal="HF_TOKEN=${HF_TOKEN}"
 ```
 
-#### 3.3 Install the stack via helmfile
+#### 2.3 Install the stack via helmfile
 
 Use the helmfile to compose and install the stack. The Namespace in which the stack will be deployed will be derived from the ${NAMESPACE} environment variable. If you have not set this, it will default to llm-d-pd in this example.
 
@@ -187,7 +53,7 @@ cd guides/pd-disaggregation
 helmfile apply -e gke_tpu -n ${NAMESPACE}
 ```
 
-#### 3.4 Install HTTPRoute
+#### 2.4 Install HTTPRoute
 
 Apply the HTTPRoute configuration:
 

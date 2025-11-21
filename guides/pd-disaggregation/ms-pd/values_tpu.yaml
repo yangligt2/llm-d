@@ -49,8 +49,6 @@ decode:
       # Keep tensor-parallelism as the first set of arguments
       - "--tensor-parallel-size"
       - "8"
-      - "--block-size"
-      - "128"
       - "--kv-transfer-config"
       - '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_both", "kv_ip" : "$(POD_IP)"}'
       - "--disable-uvicorn-access-log"
@@ -86,12 +84,12 @@ decode:
       mountPath: /.cache
     startupProbe:
       httpGet:
-        path: /v1/models
+        path: /health
         port: 8200
       initialDelaySeconds: 15
       periodSeconds: 30
       timeoutSeconds: 5
-      failureThreshold: 60
+      failureThreshold: 120
     livenessProbe:
       httpGet:
         path: /health
@@ -138,8 +136,6 @@ prefill:
     args:
       - "--tensor-parallel-size"
       - "8"
-      - "--block-size"
-      - "128"
       - "--kv-transfer-config"
       - '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_producer", "kv_ip" : "$(POD_IP)"}'
       - "--disable-uvicorn-access-log"
@@ -175,12 +171,12 @@ prefill:
       mountPath: /.cache
     startupProbe:
       httpGet:
-        path: /v1/models
+        path: /health
         port: 8000
       initialDelaySeconds: 15
       periodSeconds: 30
       timeoutSeconds: 5
-      failureThreshold: 60
+      failureThreshold: 120
     livenessProbe:
       httpGet:
         path: /health
