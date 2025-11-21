@@ -20,7 +20,7 @@ The following steps detail a fresh deployment of a PD disaggregation service on 
 
 #### 1.1 Create GKE Cluster
 
-Create the GKE cluster using the command below. For more details on GKE clusters, TPU support, and alternative creation methods (Console, Terraform), refer to the [Google Cloud documentation](https://cloud.google.com/kubernetes-engine/docs/how-to/tpus).
+Create the GKE cluster using the command below. For more details on GKE clusters, TPU support, and alternative creation methods (Console, Terraform), refer to the [llm-d on GKE Documentation](../../docs/infra-providers/gke/README.md) and [TPUs in GKE documentation](https://cloud.google.com/kubernetes-engine/docs/how-to/tpus).
 
 ```bash
 export LOCATION=<YOUR_GCP_REGION>

@@ -1,6 +1,6 @@
 multinode: false
 
-# Configure accelerator type for Intel XPU
+# Configure accelerator type for Google TPU
 accelerator:
   type: google
 
@@ -52,7 +52,7 @@ decode:
       - "--block-size"
       - "128"
       - "--kv-transfer-config"
-      - '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_producer", "kv_ip" : "$(POD_IP)"}'
+      - '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_both", "kv_ip" : "$(POD_IP)"}'
       - "--disable-uvicorn-access-log"
       - "--max-model-len"
       - "32000"
