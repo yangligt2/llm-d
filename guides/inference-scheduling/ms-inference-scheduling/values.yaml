@@ -33,12 +33,12 @@ decode:
       interval: "30s"
   containers:
   - name: "vllm"
-    image: ghcr.io/llm-d/llm-d-cuda:v0.3.0
+    image: ghcr.io/llm-d/llm-d-cuda:v0.3.1
     modelCommand: vllmServe
     args:
-      - "--enforce-eager"
       - "--kv-transfer-config"
       - '{"kv_connector":"NixlConnector", "kv_role":"kv_both"}'
+      - "--disable-uvicorn-access-log"
     env:
       - name: CUDA_VISIBLE_DEVICES
         value: "0"
@@ -51,7 +51,7 @@ decode:
       - name: VLLM_NIXL_SIDE_CHANNEL_PORT
         value: "5557"
       - name: VLLM_LOGGING_LEVEL
-        value: DEBUG
+        value: INFO
     ports:
       - containerPort: 5557
         protocol: TCP
@@ -69,6 +69,28 @@ decode:
       mountPath: /.config
     - name: torch-compile-cache
       mountPath: /.cache
+    startupProbe:
+      httpGet:
+        path: /v1/models
+        port: 8200
+      initialDelaySeconds: 15
+      periodSeconds: 30
+      timeoutSeconds: 5
+      failureThreshold: 60
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8200
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readinessProbe:
+      httpGet:
+        path: /v1/models
+        port: 8200
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
   volumes:
   - name: metrics-volume
     emptyDir: {}

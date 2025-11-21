@@ -103,7 +103,7 @@ llm-d streamlines deployment and integration of the following components:
     2. Performs model routing and rollout, flow control, KV- and prefix-cache-aware load balancing
     3. Balances traffic to the optimal model server based on the request, workload type, and current load
 2. **vLLM model servers** deployed onto Kubernetes
-    1. In single-host or multi-host (using [LeaderWorkerSets](https://lws.sigs.k8s.io/) and [Ray](https://docs.vllm.ai/en/latest/serving/distributed_serving.html#running-vllm-on-multiple-nodes) as best practice) configurations
+    1. In single-host or multi-host (using [LeaderWorkerSets](https://lws.sigs.k8s.io/) and [Ray](https://docs.vllm.ai/en/latest/serving/parallelism_scaling/#multi-node-deployment) as best practice) configurations
     2. With native support for disaggregated serving and optional curated plugins for advanced features
     3. Using project-recommended defaults or highly customized user settings
     4. May be deployed in multiple deployment **variants** (hardware, software, topology) that offer different performance tradeoffs
@@ -142,8 +142,8 @@ NVIDIA Dynamo offers an excellent integrated stack for low-latency and high-scal
 
 Unlike Dynamo, llm-d:
 * Prefers to make the prefill/decode disaggregation decision within the scheduler to more precisely control placement and latency vs. throughput tradeoffs
-* Uses RPC for disaggregation rather than an [async queue in the Distributed Runtime](https://docs.nvidia.com/dynamo/latest/architecture/distributed_runtime.html) to provide stronger cancellation semantics
-* Prioritizes a strong operational boundary between in-memory prefix cache tiers and local or remote storage tiers rather than a unified memory API like the [KV Block Manager](https://docs.nvidia.com/dynamo/latest/architecture/kvbm_intro.html)
+* Uses RPC for disaggregation rather than an [async queue in the Distributed Runtime](https://docs.nvidia.com/dynamo/latest/design_docs/distributed_runtime.html) to provide stronger cancellation semantics
+* Prioritizes a strong operational boundary between in-memory prefix cache tiers and local or remote storage tiers rather than a unified memory API like the [KV Block Manager](https://docs.nvidia.com/dynamo/latest/kvbm/kvbm_intro.html)
 
 ### Use AIBrix
 

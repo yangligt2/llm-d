@@ -1,19 +1,26 @@
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # Well-lit Path: Wide Expert Parallelism (EP/DP) with LeaderWorkerSet
 
 ## Overview
 
-This guide demonstrates how to deploy DeepSeek-R1-0528 using vLLM's P/D disaggregation support with NIXL in a wide expert parallel pattern with LeaderWorkerSets. This guide has been validated on a cluster with 24xH200 GPUs split across three nodes with InfiniBand networking.
+This guide demonstrates how to deploy DeepSeek-R1-0528 using vLLM's P/D disaggregation support with NIXL in a wide expert parallel pattern with LeaderWorkerSets. This guide has been validated on:
+
+* a 32xH200 cluster with InfiniBand networking
+* a 32xH200 cluster on GKE with RoCE networking
+* a 32xB200 cluster on GKE with RoCE networking
 
 > WARNING: We are still investigating and optimizing performance for other hardware and networking configurations
 
 In this example, we will demonstrate a deployment of `DeepSeek-R1-0528` with:
 
-- 1 DP=8 Prefill Workers
-- 2 DP=8 Decode Workers
+- 1 DP=16 Prefill Worker
+- 1 DP=16 Decode Worker
 
 ## Hardware Requirements
 
-This guide requires 24 Nvidia H200 GPUs and InfiniBand RDMA. It requires 1024 Gi of memory across and 128 Gi of ephemeral storage all 3 pods (512 Gi memory and 64 Gi storage for both Decode pods together and 512 Gi memory and 64 Gi storage for the prefill pod).
+This guide requires 32 Nvidia H200 or B200 GPUs and InfiniBand or RoCE RDMA networking. Check `modelserver/base/decode.yaml` and `modelserver/base/prefill.yaml` for detailed resource requirements.
 
 ## Prerequisites
 
@@ -40,56 +47,90 @@ kubectl create namespace ${NAMESPACE}
 
 GKE and CoreWeave are tested Kubernetes providers for this well-lit path. You can customize the manifests if you run on other Kubernetes providers.
 
-```bash
-# Deploy on GKE
-kubectl apply -k ./manifests/modelserver/gke -n ${NAMESPACE}
-
-# OR, deploy on CoreWeave
-kubectl apply -k ./manifests/modelserver/coreweave  -n ${NAMESPACE}
-```
+<Tabs>
+    <TabItem value="gke" label="GKE (H200)" default>
+      ```bash
+      kubectl apply -k ./manifests/modelserver/gke -n ${NAMESPACE}
+      ```
+    </TabItem>
+    <TabItem value="gke-b200" label="GKE (B200)">
+      ```bash
+      # Deploy on GKE for B200 on the a4 instance type to work around a known vLLM memory issue
+      kubectl apply -k ./manifests/modelserver/gke-a4 -n ${NAMESPACE}
+      ```
+    </TabItem>
+    <TabItem value="coreweave" label="CoreWeave">
+      ```bash
+      kubectl apply -k ./manifests/modelserver/coreweave  -n ${NAMESPACE}
+      ```
+    </TabItem>
+</Tabs>
 
 ### Deploy InferencePool
 
-```bash
-# For GKE
-helm install deepseek-r1 \
-  -n ${NAMESPACE} \
-  -f inferencepool.values.yaml \
-  --set "provider.name=gke" \
-  --set "inferencePool.apiVersion=inference.networking.k8s.io/v1" \
-  --set "inferenceExtension.monitoring.gke.enable=true" \
-  oci://us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/charts/inferencepool --version v1.0.1
+Select the provider-specific Helm command using the tabs below.
 
-# For Istio
-helm install deepseek-r1 \
-  -n ${NAMESPACE} \
-  -f inferencepool.values.yaml \
-  --set "provider.name=istio" \
-  --set "inferenceExtension.monitoring.prometheus.enable=true" \
-  oci://us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/charts/inferencepool --version v1.0.1
-
-# For Kgateway
-helm install deepseek-r1 \
-  -n ${NAMESPACE} \
-  -f inferencepool.values.yaml \
-  oci://us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/charts/inferencepool --version v1.0.1
-```
+<Tabs>
+    <TabItem value="gke" label="GKE" default>
+        ```bash
+        helm install deepseek-r1 \
+          -n ${NAMESPACE} \
+          -f inferencepool.values.yaml \
+          --set "provider.name=gke" \
+          --set "inferencePool.apiVersion=inference.networking.k8s.io/v1" \
+          --set "inferenceExtension.monitoring.gke.enable=true" \
+          oci://us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/charts/inferencepool \
+          --version v1.0.1
+        ```
+    </TabItem>
+    <TabItem value="istio" label="Istio">
+        ```bash
+        helm install deepseek-r1 \
+          -n ${NAMESPACE} \
+          -f inferencepool.values.yaml \
+          --set "provider.name=istio" \
+          --set "inferenceExtension.monitoring.prometheus.enable=true" \
+          oci://us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/charts/inferencepool \
+          --version v1.0.1
+        ```
+    </TabItem>
+    <TabItem value="kgateway" label="Kgateway">
+        ```bash
+        helm install deepseek-r1 \
+          -n ${NAMESPACE} \
+          -f inferencepool.values.yaml \
+          oci://us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/charts/inferencepool \
+          --version v1.0.1
+        ```
+    </TabItem>
+</Tabs>
 
 ### Deploy Gateway and HTTPRoute
 
-```bash
-# Deploy a gke-l7-regional-external-managed gateway.
-kubectl apply -k ./manifests/gateway/gke-l7-regional-external-managed -n ${NAMESPACE}
+Choose the gateway manifest that matches your environment.
 
-# Deploy an Istio gateway.
-kubectl apply -k ./manifests/gateway/istio -n ${NAMESPACE}
-
-# Deploy a kgateway gateway.
-kubectl apply -k ./manifests/gateway/kgateway -n ${NAMESPACE}
-
-# Deploy a kgateway gateway on Openshift Container Platform (OCP).
-kubectl apply -k ./manifests/gateway/kgateway-openshift -n ${NAMESPACE}
-```
+<Tabs>
+  <TabItem value="gke" label="GKE (Regional External)" default>
+    ```bash
+    kubectl apply -k ./manifests/gateway/gke-l7-regional-external-managed -n ${NAMESPACE}
+    ```
+  </TabItem>
+  <TabItem value="istio" label="Istio">
+    ```bash
+    kubectl apply -k ./manifests/gateway/istio -n ${NAMESPACE}
+    ```
+  </TabItem>
+  <TabItem value="kgateway" label="Kgateway">
+    ```bash
+    kubectl apply -k ./manifests/gateway/kgateway -n ${NAMESPACE}
+    ```
+  </TabItem>
+  <TabItem value="kgateway-ocp" label="Kgateway on OCP">
+    ```bash
+    kubectl apply -k ./manifests/gateway/kgateway-openshift -n ${NAMESPACE}
+    ```
+  </TabItem>
+</Tabs>
 
 ### Gateway options
 
@@ -121,6 +162,8 @@ pod/wide-ep-llm-d-decode-0                   2/2     Running   0          2m13s
 pod/wide-ep-llm-d-decode-0-1                 2/2     Running   0          2m13s
 pod/deepseek-r1-epp-84dd98f75b-r6lvh         1/1     Running   0          2m14s
 pod/wide-ep-llm-d-prefill-0                  1/1     Running   0          2m13s
+pod/wide-ep-llm-d-prefill-0-1                1/1     Running   0          2m13s
+
 
 NAME                                            TYPE           CLUSTER-IP    EXTERNAL-IP   PORT(S)                        AGE
 service/infra-wide-ep-inference-gateway-istio   ClusterIP      10.16.1.34    10.16.4.2     15021:30312/TCP,80:33662/TCP   2m22s
@@ -141,6 +184,7 @@ NAME                                                      READY   AGE
 statefulset.apps/wide-ep-llm-d-decode     1/1     2m13s
 statefulset.apps/wide-ep-llm-d-decode-0   1/1     2m13s
 statefulset.apps/wide-ep-llm-d-prefill    1/1     2m13s
+statefulset.apps/wide-ep-llm-d-prefill-1  1/1     2m13s
 ```
 
 **_NOTE:_** This assumes no other guide deployments in your given `${NAMESPACE}` and you have not changed the default release names via the `${RELEASE_NAME}` environment variable.
