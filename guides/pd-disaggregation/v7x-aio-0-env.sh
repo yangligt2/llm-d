@@ -1,0 +1,12 @@
+export PROJECT_ID=<YOUR_PROJECT_ID>
+export CLUSTER=<YOUR_CLUSTER_NAME>
+export LOCATION=<YOUR_GCP_REGION>
+export ZONE=<YOUR_GCP_ZONE>
+export PROJECT_ID_RESERVATION=<YOUR_PROJECT_ID_RESERVATION>
+export RESERVATION=projects/$PROJECT_ID_RESERVATION/reservations/<YOUR_RESERVATION>
+export VPC_NETWORK_NAME=default
+export NODE_POOL=v7x-aio-singlehost
+export MACHINE_TYPE=tpu7x-standard-4t
+export CIDR_RANGE=172.16.0.0/26 # ATTN: Make sure the IP range does not overlap with other subnets!!!
+export NAMESPACE=llm-d-pd
+export HF_TOKEN=<YOUR_HF_TOKEN>

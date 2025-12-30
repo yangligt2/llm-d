@@ -19,13 +19,13 @@ routing:
 
 decode:
   parallelism:
-    tensor: 8
+    tensor: 4
   create: true
   replicas: 1
   extraConfig:
     nodeSelector:
-      cloud.google.com/gke-tpu-topology: "2x4"
-      cloud.google.com/gke-tpu-accelerator: "tpu-v6e-slice"
+      cloud.google.com/gke-tpu-topology: "2x2x1"
+      cloud.google.com/gke-tpu-accelerator: "tpu7x"
   monitoring:
     podmonitor:
       enabled: true
@@ -34,14 +34,14 @@ decode:
       interval: "30s"
   containers:
   - name: "vllm"
-    image: vllm/vllm-tpu:v0.11.1
+    image: vllm/vllm-tpu:nightly-ironwood-20251222-6b879bf-c02a270
     modelCommand: vllmServe
     args:
       # Keep tensor-parallelism as the first set of arguments
       - "--tensor-parallel-size"
       - "8"
       - "--kv-transfer-config"
-      - '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_both", "kv_ip" : "$(POD_IP)"}'
+      - '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_consumer", "kv_ip" : "$(POD_IP)"}'
       - "--disable-uvicorn-access-log"
       - "--max-model-len"
       - "32000"
@@ -60,11 +60,11 @@ decode:
       limits:
         memory: 64Gi
         cpu: "16"
-        google.com/tpu: 8
+        google.com/tpu: 4
       requests:
         memory: 64Gi
         cpu: "16"
-        google.com/tpu: 8
+        google.com/tpu: 4
     mountModelVolume: true
     volumeMounts:
     - name: metrics-volume
@@ -107,13 +107,13 @@ decode:
 
 prefill:
   parallelism:
-    tensor: 8
+    tensor: 4
   create: true
-  replicas: 2
+  replicas: 1
   extraConfig:
     nodeSelector:
-      cloud.google.com/gke-tpu-topology: "2x4"
-      cloud.google.com/gke-tpu-accelerator: "tpu-v6e-slice"
+      cloud.google.com/gke-tpu-topology: "2x2x1"
+      cloud.google.com/gke-tpu-accelerator: "tpu7x"
   monitoring:
     podmonitor:
       enabled: true
@@ -122,7 +122,7 @@ prefill:
       interval: "30s"
   containers:
   - name: "vllm"
-    image: vllm/vllm-tpu:v0.11.1
+    image: vllm/vllm-tpu:nightly-ironwood-20251222-6b879bf-c02a270
     modelCommand: vllmServe
     args:
       - "--tensor-parallel-size"
@@ -147,11 +147,11 @@ prefill:
       limits:
         memory: 64Gi
         cpu: "16"
-        google.com/tpu: 8
+        google.com/tpu: 4
       requests:
         memory: 64Gi
         cpu: "16"
-        google.com/tpu: 8
+        google.com/tpu: 4
     mountModelVolume: true
     volumeMounts:
     - name: metrics-volume

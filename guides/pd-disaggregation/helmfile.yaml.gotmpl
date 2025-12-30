@@ -60,7 +60,7 @@ releases:
       - provider:
           name: {{ .Environment.Values.provider.name }}
         inferencePool:
-          apiVersion: {{ .Environment.Values.inferencePool.apiVersion }}
+          apiVersion: {{ dig "inferencePool" "apiVersion" "inference.networking.x-k8s.io/v1alpha1" .Environment.Values }}
         inferenceExtension:
           monitoring:
             gke:
