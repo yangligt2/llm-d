@@ -3,8 +3,10 @@
 # ==============================================================================
 # Configuration & Setup
 # ==============================================================================
+source v7x-aio-0-env.sh
 NAMESPACE="${NAMESPACE:-llm-d-pd}"
 # Colors for output
+YELLOW='\033[0;33m'
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
@@ -47,11 +49,11 @@ fi
 # ==============================================================================
 echo -e "\n--- Checking Kubernetes Resources ---"
 
-# We check deployments because Pod names (hashes) change. 
+# We check deployments because Pod names (hashes) change.
 # If Deployment is ready, the Pods are ready.
 DEPLOYMENTS=(
-    "gaie-pd-epp" 
-    "ms-pd-llm-d-modelservice-decode" 
+    "gaie-pd-epp"
+    "ms-pd-llm-d-modelservice-decode"
     "ms-pd-llm-d-modelservice-prefill"
 )
 
@@ -106,7 +108,54 @@ fi
 # ==============================================================================
 echo -e "\n--- Running Functional Tests ---"
 
-ENDPOINT="${GATEWAY_IP}"
+# Cleans up port-forwarding
+cleanup() {
+  if [ -n "${PF_PID:-}" ]; then
+    echo "Cleaning up port-forward (PID: $PF_PID)..."
+    kill "$PF_PID" 2>/dev/null || true
+  fi
+}
+
+if ! gcloud resource-manager org-policies describe \
+  compute.restrictLoadBalancerCreationForTypes \
+  --project=${PROJECT_ID} \
+  --format="value(listPolicy.allowedValues)" | \
+  grep -q "EXTERNAL_MANAGED_HTTP_HTTPS";then
+
+  echo -e "${YELLOW}Warning: Project ${PROJECT_ID}'s policy does not support" \
+    "EXTERNAL_MANAGED_HTTP_HTTPS. Port-forward to the decode pod to skip the" \
+    "gateway pod.${NC}"
+
+  # Find a healthy decode pod
+  POD_NAME=$(kubectl get pods -n ${NAMESPACE} \
+    -l llm-d.ai/role=decode,llm-d.ai/inferenceServing=true \
+    --field-selector=status.phase=Running \
+    -o jsonpath='{.items[0].metadata.name}')
+  if [ -z "$POD_NAME" ]; then
+    echo -e "${RED}Error: No running decode pods found.${NC}"
+    exit 1
+  fi
+
+  echo "Forwarding localhost:${LOCAL_PORT} to 8000 at $POD_NAME..."
+  # Start port-forwarding in the background
+  LOCAL_PORT=8080
+  trap cleanup EXIT
+  kubectl port-forward pod/"$POD_NAME" -n ${NAMESPACE} ${LOCAL_PORT}:8000 > /dev/null 2>&1 &
+  PF_PID=$!
+
+  # Wait for the port to be ready
+  for i in {1..10}; do
+    if nc -z localhost ${LOCAL_PORT}; then
+      break
+    fi
+    sleep 1
+  done
+
+  ENDPOINT="http://localhost:${LOCAL_PORT}"
+else
+  ENDPOINT="${GATEWAY_IP}"
+fi
+
 echo "Targeting Endpoint: $ENDPOINT"
 
 # 4.1: Check /v1/models
