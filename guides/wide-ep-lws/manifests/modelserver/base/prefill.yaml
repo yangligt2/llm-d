@@ -70,7 +70,7 @@ spec:
                   --max-model-len 65536
                   --disable-uvicorn-access-log
                   --tensor-parallel-size=1
-                  --data-parallel-size=16
+                  --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL))
                   --data-parallel-address="${LWS_LEADER_ADDRESS}"
                   --data-parallel-rpc-port=5555
                   --enable-expert-parallel
@@ -78,14 +78,14 @@ spec:
                   --all2all-backend deepep_high_throughput
                 )
 
-                CUDA_VISIBLE_DEVICES="0" vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8000 --data-parallel-rank=$((START_RANK + 0)) "${COMMON_VLLM_ARGS[@]}" &
-                CUDA_VISIBLE_DEVICES="1" vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8001 --data-parallel-rank=$((START_RANK + 1)) "${COMMON_VLLM_ARGS[@]}" &
-                CUDA_VISIBLE_DEVICES="2" vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8002 --data-parallel-rank=$((START_RANK + 2)) "${COMMON_VLLM_ARGS[@]}" &
-                CUDA_VISIBLE_DEVICES="3" vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8003 --data-parallel-rank=$((START_RANK + 3)) "${COMMON_VLLM_ARGS[@]}" &
-                CUDA_VISIBLE_DEVICES="4" vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8004 --data-parallel-rank=$((START_RANK + 4)) "${COMMON_VLLM_ARGS[@]}" &
-                CUDA_VISIBLE_DEVICES="5" vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8005 --data-parallel-rank=$((START_RANK + 5)) "${COMMON_VLLM_ARGS[@]}" &
-                CUDA_VISIBLE_DEVICES="6" vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8006 --data-parallel-rank=$((START_RANK + 6)) "${COMMON_VLLM_ARGS[@]}" &
-                CUDA_VISIBLE_DEVICES="7" vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8007 --data-parallel-rank=$((START_RANK + 7)) "${COMMON_VLLM_ARGS[@]}" &
+                CUDA_VISIBLE_DEVICES="0" VLLM_NIXL_SIDE_CHANNEL_PORT=1230 vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8000 --data-parallel-rank=$((START_RANK + 0)) "${COMMON_VLLM_ARGS[@]}" &
+                CUDA_VISIBLE_DEVICES="1" VLLM_NIXL_SIDE_CHANNEL_PORT=1231 vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8001 --data-parallel-rank=$((START_RANK + 1)) "${COMMON_VLLM_ARGS[@]}" &
+                CUDA_VISIBLE_DEVICES="2" VLLM_NIXL_SIDE_CHANNEL_PORT=1232 vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8002 --data-parallel-rank=$((START_RANK + 2)) "${COMMON_VLLM_ARGS[@]}" &
+                CUDA_VISIBLE_DEVICES="3" VLLM_NIXL_SIDE_CHANNEL_PORT=1233 vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8003 --data-parallel-rank=$((START_RANK + 3)) "${COMMON_VLLM_ARGS[@]}" &
+                CUDA_VISIBLE_DEVICES="4" VLLM_NIXL_SIDE_CHANNEL_PORT=1234 vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8004 --data-parallel-rank=$((START_RANK + 4)) "${COMMON_VLLM_ARGS[@]}" &
+                CUDA_VISIBLE_DEVICES="5" VLLM_NIXL_SIDE_CHANNEL_PORT=1235 vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8005 --data-parallel-rank=$((START_RANK + 5)) "${COMMON_VLLM_ARGS[@]}" &
+                CUDA_VISIBLE_DEVICES="6" VLLM_NIXL_SIDE_CHANNEL_PORT=1236 vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8006 --data-parallel-rank=$((START_RANK + 6)) "${COMMON_VLLM_ARGS[@]}" &
+                CUDA_VISIBLE_DEVICES="7" VLLM_NIXL_SIDE_CHANNEL_PORT=1237 vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8007 --data-parallel-rank=$((START_RANK + 7)) "${COMMON_VLLM_ARGS[@]}" &
                 wait
               - vllm-parallel-launcher
             env:
