@@ -59,6 +59,10 @@ spec:
                 #################
                 START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
 
+                # --enable-expert-parallel:  Use TPxDP in attention, EP in MoE layers
+                # --async-scheduling: Reduce white space between engine steps
+                # --enable-dbo:  Dual batch overlap (DBO) overlaps compute with collective communication.
+
                 COMMON_VLLM_ARGS=(
                   --disable-uvicorn-access-log
                   --data-parallel-size $((LWS_GROUP_SIZE * DP_SIZE_LOCAL))
@@ -67,6 +71,11 @@ spec:
                   --enable-expert-parallel
                   --kv_transfer_config '{"kv_connector":"NixlConnector","kv_role":"kv_both","kv_load_failure_policy":"fail"}'
                   --all2all-backend deepep_low_latency
+                  --enable-dbo
+                  --dbo-decode-token-threshold 32
+                  --enable-eplb
+                  --eplb-config '{"window_size":"1000","step_interval":"3000","num_redundant_experts":"32","log_balancedness":"False"}'
+                  --kv-cache-memory-bytes=${KV_CACHE_MEMORY_BYTES-}
                 )
 
                 CUDA_VISIBLE_DEVICES="0" vllm serve deepseek-ai/DeepSeek-R1-0528 --host=0.0.0.0 --port=8200 --data-parallel-rank=$((START_RANK + 0)) "${COMMON_VLLM_ARGS[@]}" &
@@ -88,7 +97,7 @@ spec:
               - name: NVSHMEM_DISABLE_CUDA_VMM
                 value: "0"
               - name: VLLM_MOE_DP_CHUNK_SIZE
-                value: "384" # vLLM default is 256
+                value: "384"  # vLLM default is 256
               - name: DP_SIZE_LOCAL
                 value: "8"
               - name: TP_SIZE
@@ -117,6 +126,14 @@ spec:
                 valueFrom:
                   fieldRef:
                     fieldPath: status.podIP
+              - name: CUDA_CACHE_PATH
+                value: /var/cache/vllm/cuda
+              - name: CCACHE_DIR
+                value: /var/cache/vllm/ccache
+              - name: VLLM_CACHE_ROOT
+                value: /var/cache/vllm/vllm
+              - name: FLASHINFER_WORKSPACE_BASE
+                value: /var/cache/vllm/flashinfer
               - name: HF_HUB_CACHE
                 value: /var/cache/huggingface
 
