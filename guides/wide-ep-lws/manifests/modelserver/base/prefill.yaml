@@ -58,7 +58,6 @@ spec:
                 #################
                 START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
 
-                # Launch 8 separate vLLM instances (one per GPU) with explicit DP ranks
                 # --enable-expert-parallel: Use TPxDP in attention, EP in MoE layers
                 # --async-scheduling: Reduce white space between engine steps
                 # --enable-dbo: Dual batch overlap (DBO) overlaps compute with collective communication.
