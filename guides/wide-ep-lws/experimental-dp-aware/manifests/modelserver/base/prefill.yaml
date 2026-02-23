@@ -58,13 +58,6 @@ spec:
                 #################
                 START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
 
-                # --enable-expert-parallel: Use TPxDP in attention, EP in MoE layers
-                # --async-scheduling: Reduce white space between engine steps
-                # --enable-dbo: Dual batch overlap (DBO) overlaps compute with collective communication.
-                # --enable-eplb:  Expert-parallel load balancing reduces EP load imbalance by replicating heavily-used experts
-                #   Performance-memory tradeoff: on DeepSeekV3 eplb uses an extra 2GB per redundant expert per GPU
-                #   Divisibility constraint: num_routed_experts (256 for DSv3) + num_redundant_experts must be divisible by the number of GPUs.
-
                 # Common vLLM flag arguments shared across all prefill ranks
                 COMMON_VLLM_ARGS=(
                   --max-model-len 65536
