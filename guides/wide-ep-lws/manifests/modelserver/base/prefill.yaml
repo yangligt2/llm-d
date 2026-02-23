@@ -28,7 +28,7 @@ spec:
           - name: dshm
             emptyDir:
               medium: Memory
-              sizeLimit: 3Gi  # roughly 32MB per local DP plus scratch space
+              sizeLimit: 2Gi  # roughly 32MB per local DP plus scratch space
           - name: hf-cache
             emptyDir: {}
           - name: jit-cache
@@ -54,7 +54,7 @@ spec:
                 find /dev/shm -type f -delete
 
                 #################
-                # RUN vLLM prefill workers with DP-aware scheduling
+                # RUN vLLM prefill workers
                 #################
                 START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
 
