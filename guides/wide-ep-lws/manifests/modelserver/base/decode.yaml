@@ -139,9 +139,6 @@ spec:
                 value: /var/cache/huggingface
 
             ports:
-              - containerPort: 5600
-                name: nixl
-                protocol: TCP
               - containerPort: 8200
                 name: rank0
                 protocol: TCP
