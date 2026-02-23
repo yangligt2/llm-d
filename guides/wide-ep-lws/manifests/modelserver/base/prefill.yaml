@@ -1,7 +1,7 @@
 apiVersion: leaderworkerset.x-k8s.io/v1
 kind: LeaderWorkerSet
 metadata:
-  name: wide-ep-prefill
+  name: prefill
   labels:
     llm-d.ai/inference-serving: "true"
     llm-d.ai/guide: "wide-ep-lws"
@@ -10,7 +10,7 @@ metadata:
     llm-d.ai/model: DeepSeek-R1-0528
     llm-d.ai/role: prefill
 spec:
-  replicas: 1
+  replicas: 2
   leaderWorkerTemplate:
     size: 1
     workerTemplate:
