@@ -63,7 +63,8 @@ spec:
                 # --async-scheduling: Reduce white space between engine steps
                 # --enable-dbo: Dual batch overlap (DBO) overlaps compute with collective communication.
                 # --enable-eplb:  Expert-parallel load balancing reduces EP load imbalance by replicating heavily-used experts
-                # --tensor-parallel-size=1: This is the default arg so could be omitted, its kept here for readability of the separate processes
+                #   Performance-memory tradeoff: on DeepSeekV3 eplb uses an extra 2GB per redundant expert per GPU
+                #   Divisibility constraint: num_routed_experts (256 for DSv3) + num_redundant_experts must be divisible by the number of GPUs.
 
                 # Common vLLM flag arguments shared across all prefill ranks
                 COMMON_VLLM_ARGS=(
@@ -89,12 +90,6 @@ spec:
                 wait
               - vllm-parallel-launcher
             env:
-              - name: UCX_NET_DEVICES
-                value: "mlx5_0:1,mlx5_1:1,mlx5_2:1,mlx5_3:1,mlx5_4:1,mlx5_5:1,mlx5_6:1,mlx5_7:1,mlx5_8:1,mlx5_9:1,mlx5_10:1,mlx5_11:1"
-              - name: NVSHMEM_HCA_LIST
-                value: "mlx5_0:1,mlx5_1:1,mlx5_2:1,mlx5_3:1,mlx5_4:1,mlx5_5:1,mlx5_6:1,mlx5_7:1,mlx5_8:1,mlx5_9:1,mlx5_10:1,mlx5_11:1"
-              - name: NVSHMEM_DISABLE_CUDA_VMM
-                value: "0"
               - name: DP_SIZE_LOCAL
                 value: "8"
               - name: TP_SIZE
