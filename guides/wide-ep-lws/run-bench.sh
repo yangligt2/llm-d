@@ -5,8 +5,8 @@
 # ==============================================================================
 NAMESPACE="${NAMESPACE:-llm-d-nebius}"
 GATEWAY_NAME="${GATEWAY_NAME:-llm-d-inference-gateway}"
-BENCHMARK_DIR="${BENCHMARK_DIR:-./bench-dp-ep-single-node-dp-aware}"
-OUTPUT_DIR="${BENCHMARK_DIR}-results"
+BENCHMARK_DIR="${BENCHMARK_DIR:-./bench-dp-ep-multi-node-dp-aware}"
+OUTPUT_DIR="${BENCHMARK_DIR}-results-routing"
 # RAW_IP="${RAW_IP:-10.145.217.87}"
 # RAW_PORT="${RAW_PORT:-80}"
 

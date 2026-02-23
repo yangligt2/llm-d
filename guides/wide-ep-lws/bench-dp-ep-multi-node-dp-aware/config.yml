@@ -1,7 +1,7 @@
 load:
   type: constant
   stages:
-  - rate: 30
+  - rate: 10
     duration: 180
 api: 
   type: completion

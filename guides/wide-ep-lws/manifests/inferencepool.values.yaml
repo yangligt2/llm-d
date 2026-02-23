@@ -31,7 +31,7 @@ inferenceExtension:
       - type: prefill-filter
       - type: decode-filter
       - type: prefix-cache-scorer
-      - type: kv-cache-utilization-scorer
+      - type: active-request-scorer
       - type: queue-scorer
       - type: pd-profile-handler
         parameters:
@@ -43,14 +43,14 @@ inferenceExtension:
         - pluginRef: prefill-filter
         - pluginRef: prefix-cache-scorer
           weight: 3
-        - pluginRef: kv-cache-utilization-scorer
+        - pluginRef: active-request-scorer
           weight: 2
         - pluginRef: queue-scorer
           weight: 2
       - name: decode
         plugins:
         - pluginRef: decode-filter
-        - pluginRef: kv-cache-utilization-scorer
+        - pluginRef: active-request-scorer
           weight: 1
         - pluginRef: queue-scorer
           weight: 1
