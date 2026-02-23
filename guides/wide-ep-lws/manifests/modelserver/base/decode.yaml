@@ -89,7 +89,7 @@ spec:
               - name: NVSHMEM_DISABLE_CUDA_VMM
                 value: "0"
               - name: VLLM_MOE_DP_CHUNK_SIZE
-                value: "384"
+                value: "384" # vLLM default is 256
               - name: DP_SIZE_LOCAL
                 value: "8"
               - name: TP_SIZE
@@ -175,7 +175,6 @@ spec:
               periodSeconds: 10
               timeoutSeconds: 5
               failureThreshold: 3
-
             resources:
               limits:
                 memory: 512Gi
@@ -184,7 +183,6 @@ spec:
                 cpu: 32
                 memory: 512Gi
                 nvidia.com/gpu: "8"
-
             volumeMounts:
               - name: dshm
                 mountPath: /dev/shm
