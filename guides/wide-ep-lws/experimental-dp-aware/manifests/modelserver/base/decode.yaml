@@ -34,6 +34,30 @@ spec:
             emptyDir: {}
           - name: jit-cache
             emptyDir: {}
+        initContainers:
+          - name: routing-proxy
+            image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.5.0
+            imagePullPolicy: Always
+            args:
+              # sidecar proxy is started with --port 8000, --vllm-port 8200, and --data-parallel-size 8,
+              # so it listens on ports in the range [port:port+data-parallel-size-1] and forwards
+              # requests each to the corresponding vllm port.
+              - --port=8000
+              - --vllm-port=8200
+              - --data-parallel-size=8
+              - --connector=nixlv2
+              - --zap-log-level=4
+              - --secure-proxy=false
+              - --enable-prefiller-sampling
+            ports:
+              - containerPort: 8000
+                name: proxy-rank0
+                protocol: TCP
+            resources: {}
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+
         containers:
           - name: vllm
             image: ghcr.io/llm-d/llm-d-cuda:v0.5.0
@@ -190,155 +214,3 @@ spec:
                 mountPath: /var/cache/huggingface
               - name: jit-cache
                 mountPath: /var/cache/vllm
-
-          - name: routing-proxy-rank0
-            image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.5.0
-            imagePullPolicy: Always
-            args:
-              - --port=8000
-              - --vllm-port=8200
-              - --connector=nixlv2
-              - --zap-log-level=4
-              - --secure-proxy=false
-              - --enable-prefiller-sampling
-            ports:
-              - containerPort: 8000
-                name: proxy-rank0
-                protocol: TCP
-            resources: {}
-            securityContext:
-              allowPrivilegeEscalation: false
-              runAsNonRoot: true
-
-          - name: routing-proxy-rank1
-            image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.5.0
-            imagePullPolicy: Always
-            args:
-              - --port=8001
-              - --vllm-port=8201
-              - --connector=nixlv2
-              - --zap-log-level=4
-              - --secure-proxy=false
-              - --enable-prefiller-sampling
-            ports:
-              - containerPort: 8001
-                name: proxy-rank1
-                protocol: TCP
-            resources: {}
-            securityContext:
-              allowPrivilegeEscalation: false
-              runAsNonRoot: true
-
-          - name: routing-proxy-rank2
-            image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.5.0
-            imagePullPolicy: Always
-            args:
-              - --port=8002
-              - --vllm-port=8202
-              - --connector=nixlv2
-              - --zap-log-level=4
-              - --secure-proxy=false
-              - --enable-prefiller-sampling
-            ports:
-              - containerPort: 8002
-                name: proxy-rank2
-                protocol: TCP
-            resources: {}
-            securityContext:
-              allowPrivilegeEscalation: false
-              runAsNonRoot: true
-
-          - name: routing-proxy-rank3
-            image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.5.0
-            imagePullPolicy: Always
-            args:
-              - --port=8003
-              - --vllm-port=8203
-              - --connector=nixlv2
-              - --zap-log-level=4
-              - --secure-proxy=false
-              - --enable-prefiller-sampling
-            ports:
-              - containerPort: 8003
-                name: proxy-rank3
-                protocol: TCP
-            resources: {}
-            securityContext:
-              allowPrivilegeEscalation: false
-              runAsNonRoot: true
-
-          - name: routing-proxy-rank4
-            image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.5.0
-            imagePullPolicy: Always
-            args:
-              - --port=8004
-              - --vllm-port=8204
-              - --connector=nixlv2
-              - --zap-log-level=4
-              - --secure-proxy=false
-              - --enable-prefiller-sampling
-            ports:
-              - containerPort: 8004
-                name: proxy-rank4
-                protocol: TCP
-            resources: {}
-            securityContext:
-              allowPrivilegeEscalation: false
-              runAsNonRoot: true
-
-          - name: routing-proxy-rank5
-            image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.5.0
-            imagePullPolicy: Always
-            args:
-              - --port=8005
-              - --vllm-port=8205
-              - --connector=nixlv2
-              - --zap-log-level=4
-              - --secure-proxy=false
-              - --enable-prefiller-sampling
-            ports:
-              - containerPort: 8005
-                name: proxy-rank5
-                protocol: TCP
-            resources: {}
-            securityContext:
-              allowPrivilegeEscalation: false
-              runAsNonRoot: true
-
-          - name: routing-proxy-rank6
-            image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.5.0
-            imagePullPolicy: Always
-            args:
-              - --port=8006
-              - --vllm-port=8206
-              - --connector=nixlv2
-              - --zap-log-level=4
-              - --secure-proxy=false
-              - --enable-prefiller-sampling
-            ports:
-              - containerPort: 8006
-                name: proxy-rank6
-                protocol: TCP
-            resources: {}
-            securityContext:
-              allowPrivilegeEscalation: false
-              runAsNonRoot: true
-
-          - name: routing-proxy-rank7
-            image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.5.0
-            imagePullPolicy: Always
-            args:
-              - --port=8007
-              - --vllm-port=8207
-              - --connector=nixlv2
-              - --zap-log-level=4
-              - --secure-proxy=false
-              - --enable-prefiller-sampling
-            ports:
-              - containerPort: 8007
-                name: proxy-rank7
-                protocol: TCP
-            resources: {}
-            securityContext:
-              allowPrivilegeEscalation: false
-              runAsNonRoot: true
