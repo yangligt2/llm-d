@@ -67,7 +67,7 @@ This guide requires 32 Nvidia H200 or B200 GPUs and InfiniBand or RoCE RDMA netw
 ## Installation
 
 ```bash
-cd guides/wide-ep-lws/
+cd guides/wide-ep-lws/experimental-dp-aware
 ```
 
 ### Deploy Model Servers
