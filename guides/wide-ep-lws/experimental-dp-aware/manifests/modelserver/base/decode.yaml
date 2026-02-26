@@ -53,6 +53,7 @@ spec:
                 # Clear /dev/shm on start to prevent running out of space when crashes occur
                 # https://github.com/llm-d/llm-d/issues/352
                 find /dev/shm -type f -delete
+                export LD_LIBRARY_PATH=export LD_LIBRARY_PATH=/usr/local/nvidia/lib64:/usr/local/cuda/lib64:/opt/nvshmem-v3.4.5-0/lib:/opt/nvshmem-v3.4.5-0/lib64:/opt/ucx/lib:/opt/ucx/lib64:/usr/lib/x86_64-linux-gnu
 
                 #################
                 # RUN vLLM decode workers
@@ -108,6 +109,8 @@ spec:
                 value: eth0
               - name: VLLM_LOGGING_LEVEL
                 value: INFO
+              - name: NVSHMEM_DISABLE_CUDA_VMM
+                value: "0"
               - name: VLLM_NIXL_SIDE_CHANNEL_HOST
                 valueFrom:
                   fieldRef:

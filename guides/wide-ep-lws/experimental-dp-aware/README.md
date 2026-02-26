@@ -70,6 +70,16 @@ This guide requires 32 Nvidia H200 or B200 GPUs and InfiniBand or RoCE RDMA netw
 cd guides/wide-ep-lws/experimental-dp-aware
 ```
 
+### Deploy Gateway and HTTPRoute
+
+Deploy the Gateway and HTTPRoute using the [gateway recipe](../../recipes/gateway/README.md).
+
+#### Gateway options
+
+To see what gateway options are supported refer to our [gateway provider prereq doc](../../prereq/gateway-provider/README.md#supported-providers). Gateway configurations per provider are tracked in the [gateway-configurations directory](../../prereq/gateway-provider/common-configurations/).
+
+You can also customize your gateway, for more information on how to do that see our [gateway customization docs](../../docs/customizing-your-gateway.md).
+
 ### Deploy Model Servers
 
 CoreWeave are tested Kubernetes providers for this well-lit path. You can customize the manifests if you run on other Kubernetes providers.
@@ -98,16 +108,6 @@ helm install llm-d-infpool \
   oci://registry.k8s.io/gateway-api-inference-extension/charts/inferencepool \
   --version v1.3.0
 ```
-
-### Deploy Gateway and HTTPRoute
-
-Deploy the Gateway and HTTPRoute using the [gateway recipe](../recipes/gateway/README.md).
-
-### Gateway options
-
-To see what gateway options are supported refer to our [gateway provider prereq doc](../prereq/gateway-provider/README.md#supported-providers). Gateway configurations per provider are tracked in the [gateway-configurations directory](../prereq/gateway-provider/common-configurations/).
-
-You can also customize your gateway, for more information on how to do that see our [gateway customization docs](../../docs/customizing-your-gateway.md).
 
 ## Verifying the installation
 
@@ -168,60 +168,3 @@ For instructions on getting started making inference requests see [our docs](../
 
 This is a simple benchmarking setup to demonstrate the correctness of the implementation.
 
-### Overview
-
-We deployed the default wide-ep-lws user guide on GKE (`./manifests/modelserver/gke-a4`).
-
-* Provider: GKE
-* Prefill: 1 instance with EP=16
-* Decode: 1 instance with EP=16
-* 4 `a4-highgpu-8g` VMs, 32 GPUs
-
-We use the [inference-perf](https://github.com/kubernetes-sigs/inference-perf/tree/main) benchmark tool to generate random datasets with 1K input length and 1K output length. This benchmark targets batch use case and we aim to find the maximum throughput by sweeping from lower to higher request rates up to 250 QPS.
-
-### Run Benchmark
-
-1. Deploy the wide-ep-lws stack following the Installation steps above. Once the stack is ready, obtain the gateway IP: 
-
-```bash
-export GATEWAY_IP=$(kubectl get gateway/llm-d-inference-gateway -n ${NAMESPACE} -o jsonpath='{.status.addresses[0].value}')
-```
-
-2. Follow the [benchmark guide](../../guides/benchmark/README.md) to deploy the benchmark tool and analyze the benchmark results. Notably, select the corresponding benchmark template:
-
-```
-export BENCHMARK_TEMPLATE="${BENCH_TEMPLATE_DIR}"/wide_ep_template.yaml
-```
-
-### Results
-
-<img src="throughput_vs_qps.png" width="900" alt="Throughput vs QPS">
-<img src="throughput_vs_latency.png" width="300" alt="Throughput vs Latency">
-
-At request rate 250, we achieved the max throughput:
-
-```
-"throughput": {
-    "input_tokens_per_sec": 51218.79261732335,
-    "output_tokens_per_sec": 49783.58426326592,
-    "total_tokens_per_sec": 101002.37688058926,
-    "requests_per_sec": 50.02468992880545
-}
-```
-
-This equals to 3200 input tokens/s/GPU and 3100 output tokens/s/GPU.
-
-## Cleanup
-
-To remove the deployment:
-
-```bash
-# From examples/wide-ep-lws
-helm uninstall llm-d-infpool -n ${NAMESPACE}
-kubectl delete -k ./manifests/modelserver/<gke|coreweave> -n ${NAMESPACE}
-kubectl delete -k ../recipes/gateway/<gke-l7-regional-external-managed|istio|kgateway|kgateway-openshift> -n ${NAMESPACE}
-```
-
-## Customization
-
-For information on customizing a guide and tips to build your own, see [our docs](../../docs/customizing-a-guide.md)
