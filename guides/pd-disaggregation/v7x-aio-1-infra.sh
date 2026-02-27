@@ -63,7 +63,7 @@ RET=$(gcloud container node-pools list --location $LOCATION --cluster=$CLUSTER -
 if [ -n "${RET}" ]; then
   echo "Node pool ${NODE_POOL} already existed and skip creation."
 else
-  echo "Createing node pool ${NODE_POOL} ..."
+  echo "Creating node pool ${NODE_POOL} ..."
   gcloud container node-pools create $NODE_POOL \
     --project=$PROJECT_ID \
     --cluster=$CLUSTER \
