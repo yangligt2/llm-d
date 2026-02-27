@@ -42,7 +42,9 @@ else
     exit 1
 fi
 
-# Create GKE Cluster
+# Create a GKE cluster and pin to a specific GKE version for reproducibility.
+# Command to check available gke versions on each channel in a region:
+# $ gcloud container get-server-config --region us-central1 --format="yaml(channels)"
 RET=$(gcloud container clusters list --location $LOCATION --filter="name~^${CLUSTER}$" --format="value(name)")
 if [ -n "${RET}" ]; then
   echo "Cluster ${CLUSTER} already existed and skip creation."
@@ -55,7 +57,8 @@ else
     --enable-ip-alias \
     --network=${VPC_NETWORK_NAME} \
     --subnetwork=${VPC_NETWORK_NAME} \
-    --release-channel "rapid"
+    --release-channel "rapid" \
+    --cluster-version="1.35.0-gke.3047000"
 fi
 
 # Create nodepool
