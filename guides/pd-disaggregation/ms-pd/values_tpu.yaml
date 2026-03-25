@@ -34,7 +34,8 @@ decode:
       interval: "30s"
   containers:
   - name: "vllm"
-    image: vllm/vllm-tpu:nightly-ironwood-20251222-6b879bf-c02a270
+    # image: vllm/vllm-tpu:nightly-ironwood-20251222-6b879bf-c02a270 # work but no kv transfer metric report
+    image: vllm/vllm-tpu:nightly-ironwood-20260202-5a083fc-3f96fcf
     modelCommand: vllmServe
     args:
       # Keep tensor-parallelism as the first set of arguments
@@ -122,7 +123,8 @@ prefill:
       interval: "30s"
   containers:
   - name: "vllm"
-    image: vllm/vllm-tpu:nightly-ironwood-20251222-6b879bf-c02a270
+    # image: vllm/vllm-tpu:nightly-ironwood-20251222-6b879bf-c02a270 # work but no kv transfer metric report
+    image: vllm/vllm-tpu:nightly-ironwood-20260202-5a083fc-3f96fcf # pod started but cannot curl model
     modelCommand: vllmServe
     args:
       - "--tensor-parallel-size"
