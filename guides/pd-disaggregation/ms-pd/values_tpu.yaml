@@ -59,12 +59,12 @@ decode:
         protocol: TCP
     resources:
       limits:
-        memory: 64Gi
-        cpu: "16"
+        memory: 512Gi
+        cpu: "64"
         google.com/tpu: 4
       requests:
-        memory: 64Gi
-        cpu: "16"
+        memory: 512Gi
+        cpu: "64"
         google.com/tpu: 4
     mountModelVolume: true
     volumeMounts:
@@ -147,12 +147,12 @@ prefill:
         protocol: TCP
     resources:
       limits:
-        memory: 64Gi
-        cpu: "16"
+        memory: 512Gi
+        cpu: "64"
         google.com/tpu: 4
       requests:
-        memory: 64Gi
-        cpu: "16"
+        memory: 512Gi
+        cpu: "64"
         google.com/tpu: 4
     mountModelVolume: true
     volumeMounts:
