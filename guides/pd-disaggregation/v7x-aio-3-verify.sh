@@ -4,6 +4,10 @@
 # Configuration & Setup
 # ==============================================================================
 source v7x-aio-0-env.sh
+
+# Config kubectl so kubectl context points to correct cluster and locaiton.
+gcloud container clusters get-credentials $CLUSTER --location=$LOCATION
+
 NAMESPACE="${NAMESPACE:-llm-d-pd}"
 # Colors for output
 YELLOW='\033[0;33m'
@@ -82,7 +86,7 @@ echo -e "\n--- Checking GKE Gateway ---"
 
 GATEWAY_NAME="infra-pd-inference-gateway"
 GATEWAY_IP=""
-
+kubectl get gateway "$GATEWAY_NAME" -n "${NAMESPACE}"
 # Wait/Check for Gateway IP
 RAW_IP=$(kubectl get gateway "$GATEWAY_NAME" -n "${NAMESPACE}" -o jsonpath='{.status.addresses[0].value}' 2>/dev/null)
 
@@ -108,59 +112,14 @@ fi
 # ==============================================================================
 echo -e "\n--- Running Functional Tests ---"
 
-# Cleans up port-forwarding
-cleanup() {
-  if [ -n "${PF_PID:-}" ]; then
-    echo "Cleaning up port-forward (PID: $PF_PID)..."
-    kill "$PF_PID" 2>/dev/null || true
-  fi
-}
-
-if ! gcloud resource-manager org-policies describe \
-  compute.restrictLoadBalancerCreationForTypes \
-  --project=${PROJECT_ID} \
-  --format="value(listPolicy.allowedValues)" | \
-  grep -q "EXTERNAL_MANAGED_HTTP_HTTPS";then
-
-  echo -e "${YELLOW}Warning: Project ${PROJECT_ID}'s policy does not support" \
-    "EXTERNAL_MANAGED_HTTP_HTTPS. Port-forward to the decode pod to skip the" \
-    "gateway pod.${NC}"
-
-  # Find a healthy decode pod
-  POD_NAME=$(kubectl get pods -n ${NAMESPACE} \
-    -l llm-d.ai/role=decode,llm-d.ai/inferenceServing=true \
-    --field-selector=status.phase=Running \
-    -o jsonpath='{.items[0].metadata.name}')
-  if [ -z "$POD_NAME" ]; then
-    echo -e "${RED}Error: No running decode pods found.${NC}"
-    exit 1
-  fi
-
-  echo "Forwarding localhost:${LOCAL_PORT} to 8000 at $POD_NAME..."
-  # Start port-forwarding in the background
-  LOCAL_PORT=8080
-  trap cleanup EXIT
-  kubectl port-forward pod/"$POD_NAME" -n ${NAMESPACE} ${LOCAL_PORT}:8000 > /dev/null 2>&1 &
-  PF_PID=$!
-
-  # Wait for the port to be ready
-  for i in {1..10}; do
-    if nc -z localhost ${LOCAL_PORT}; then
-      break
-    fi
-    sleep 1
-  done
-
-  ENDPOINT="http://localhost:${LOCAL_PORT}"
-else
-  ENDPOINT="${GATEWAY_IP}"
-fi
-
+ENDPOINT="${GATEWAY_IP}"
 echo "Targeting Endpoint: $ENDPOINT"
 
 # 4.1: Check /v1/models
 echo -e "\n> Requesting /v1/models..."
-MODELS_RESPONSE=$(curl -s "${ENDPOINT}/v1/models" -H "Content-Type: application/json")
+MODELS_RESPONSE=$(kubectl run -it --rm --quiet --restart=Never \
+  curl --image=curlimages/curl -n llm-d-pd -- \
+  curl -s "${ENDPOINT}/v1/models" -H "Content-Type: application/json" 2>/dev/null)
 
 # Validate valid JSON response
 if ! echo "$MODELS_RESPONSE" | jq empty > /dev/null 2>&1; then
@@ -187,9 +146,11 @@ COMPLETION_PAYLOAD=$(jq -n \
                   --arg prompt "How are you today?" \
                   '{model: $model, max_tokens: 64, prompt: $prompt}')
 
-COMPLETION_RESPONSE=$(curl -s -X POST "${ENDPOINT}/v1/completions" \
+COMPLETION_RESPONSE=$(kubectl run -it --rm --quiet --restart=Never \
+  curl --image=curlimages/curl -n llm-d-pd -- \
+  curl -s -X POST "${ENDPOINT}/v1/completions" \
     -H 'Content-Type: application/json' \
-    -d "$COMPLETION_PAYLOAD")
+    -d "$COMPLETION_PAYLOAD" 2>/dev/null)
 
 # Check for success in response
 # We look for "choices" array which indicates a successful generation

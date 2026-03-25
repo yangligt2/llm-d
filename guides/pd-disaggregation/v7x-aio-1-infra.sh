@@ -42,7 +42,9 @@ else
     exit 1
 fi
 
-# Create GKE Cluster
+# Create a GKE cluster and pin to a specific GKE version for reproducibility.
+# Command to check available gke versions on each channel in a region:
+# $ gcloud container get-server-config --region us-central1 --format="yaml(channels)"
 RET=$(gcloud container clusters list --location $LOCATION --filter="name~^${CLUSTER}$" --format="value(name)")
 if [ -n "${RET}" ]; then
   echo "Cluster ${CLUSTER} already existed and skip creation."
@@ -55,7 +57,8 @@ else
     --enable-ip-alias \
     --network=${VPC_NETWORK_NAME} \
     --subnetwork=${VPC_NETWORK_NAME} \
-    --release-channel "rapid"
+    --release-channel "rapid" \
+    --cluster-version="1.35.0-gke.3047000"
 fi
 
 # Create nodepool
@@ -63,7 +66,7 @@ RET=$(gcloud container node-pools list --location $LOCATION --cluster=$CLUSTER -
 if [ -n "${RET}" ]; then
   echo "Node pool ${NODE_POOL} already existed and skip creation."
 else
-  echo "Createing node pool ${NODE_POOL} ..."
+  echo "Creating node pool ${NODE_POOL} ..."
   gcloud container node-pools create $NODE_POOL \
     --project=$PROJECT_ID \
     --cluster=$CLUSTER \
@@ -75,9 +78,6 @@ else
     --reservation-affinity=specific \
     --reservation=$RESERVATION
 fi
-
-# Config kubectl
-gcloud container clusters get-credentials $CLUSTER --location=$LOCATION
 
 # Create proxy only subnet needed by GKE gateway
 RET=$(gcloud compute networks subnets list --filter="name~^${SUBNET_NAME}$" --format="value(name)")
@@ -93,7 +93,11 @@ else
     --range=$CIDR_RANGE
 fi
 
-# Create firewall rule with source ranges described in GCP docs
+# Config kubectl so kubectl context points to correct cluster and locaiton.
+gcloud container clusters get-credentials $CLUSTER --location=$LOCATION
+
+# Create firewall rule with source ranges described in
+# https://docs.cloud.google.com/kubernetes-engine/docs/concepts/firewall-rules#gateway-fws
 NODE=$(kubectl get nodes -l cloud.google.com/gke-nodepool=$NODE_POOL -o jsonpath='{.items[0].metadata.name}')
 TARGET_TAG=$(gcloud compute instances describe ${NODE} --zone=${ZONE} --project=${PROJECT_ID} --format="value(tags.items)")
 RET=$(gcloud compute firewall-rules list --filter="name~^${NETWORK_FW_NAME}$" --format="value(name)")
@@ -106,5 +110,5 @@ else
     --target-tags=$TARGET_TAG \
     --network ${VPC_NETWORK_NAME} \
     --allow=all \
-    --source-ranges=35.191.0.0/16,130.211.0.0/22
+    --source-ranges=35.191.0.0/16,130.211.0.0/22 # Google health check ip range
 fi
