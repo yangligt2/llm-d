@@ -43,6 +43,9 @@ decode:
       - "8"
       - "--kv-transfer-config"
       - '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_consumer", "kv_ip" : "$(POD_IP)"}'
+      - "--kv-cache-dtype=fp8"
+      - "--no-enable-prefix-caching"
+      - "--no-async-scheduling"
       - "--disable-uvicorn-access-log"
       - "--max-model-len"
       - "32000"
@@ -131,6 +134,9 @@ prefill:
       - "8"
       - "--kv-transfer-config"
       - '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_producer", "kv_ip" : "$(POD_IP)"}'
+      - "--kv-cache-dtype=fp8"
+      - "--no-enable-prefix-caching"
+      - "--no-async-scheduling"
       - "--disable-uvicorn-access-log"
       - "--max-model-len"
       - "32000"
