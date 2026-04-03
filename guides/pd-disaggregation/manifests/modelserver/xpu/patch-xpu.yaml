@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-pd-llm-d-modelservice-decode
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/hardware-variant: xpu
+      llm-d.ai/hardware-vendor: intel
+      llm-d.ai/model: Qwen3-0.6B
+  template:
+    metadata:
+      labels:
+        llm-d.ai/hardware-variant: xpu
+        llm-d.ai/hardware-vendor: intel
+        llm-d.ai/model: Qwen3-0.6B
+    spec:
+      securityContext:
+        fsGroup: 107
+        supplementalGroups:
+          - 107
+      containers:
+        - name: vllm
+          image: ghcr.io/llm-d/llm-d-xpu:v0.6.0
+          args:
+            - "--block-size"
+            - "64"
+            - "--kv-transfer-config"
+            - '{"kv_connector":"NixlConnector", "kv_role":"kv_both", "kv_buffer_device":"cpu"}'
+            - "--disable-uvicorn-access-log"
+            - "--max-model-len"
+            - "32000"
+          env:
+            - name: UCX_TLS
+              value: "tcp"
+            - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: VLLM_NIXL_SIDE_CHANNEL_PORT
+              value: "5600"
+            - name: VLLM_USE_V1
+              value: "1"
+            - name: TORCH_LLM_ALLREDUCE
+              value: "1"
+            - name: VLLM_WORKER_MULTIPROC_METHOD
+              value: "spawn"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-pd-llm-d-modelservice-prefill
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/hardware-variant: xpu
+      llm-d.ai/hardware-vendor: intel
+      llm-d.ai/model: Qwen3-0.6B
+  template:
+    metadata:
+      labels:
+        llm-d.ai/hardware-variant: xpu
+        llm-d.ai/hardware-vendor: intel
+        llm-d.ai/model: Qwen3-0.6B
+    spec:
+      securityContext:
+        fsGroup: 107
+        supplementalGroups:
+          - 107
+      containers:
+        - name: vllm
+          image: ghcr.io/llm-d/llm-d-xpu:v0.6.0
+          args:
+            - "--block-size"
+            - "64"
+            - "--kv-transfer-config"
+            - '{"kv_connector":"NixlConnector", "kv_role":"kv_both", "kv_buffer_device":"cpu"}'
+            - "--disable-uvicorn-access-log"
+            - "--max-model-len"
+            - "32000"
+          env:
+            - name: UCX_TLS
+              value: "tcp"
+            - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: VLLM_NIXL_SIDE_CHANNEL_PORT
+              value: "5600"
+            - name: VLLM_USE_V1
+              value: "1"
+            - name: TORCH_LLM_ALLREDUCE
+              value: "1"
+            - name: VLLM_WORKER_MULTIPROC_METHOD
+              value: "spawn"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ms-pd-llm-d-modelservice-decode-podmonitor
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/hardware-variant: xpu
+      llm-d.ai/hardware-vendor: intel
+      llm-d.ai/model: Qwen3-0.6B
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ms-pd-llm-d-modelservice-prefill-podmonitor
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/hardware-variant: xpu
+      llm-d.ai/hardware-vendor: intel
+      llm-d.ai/model: Qwen3-0.6B

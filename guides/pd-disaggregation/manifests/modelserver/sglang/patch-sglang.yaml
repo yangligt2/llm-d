@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-pd-llm-d-modelservice-decode
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/model: Qwen3-14B
+  template:
+    metadata:
+      labels:
+        llm-d.ai/model: Qwen3-14B
+    spec:
+      containers:
+        - name: vllm
+          image: docker.io/lmsysorg/sglang:v0.5.6.post2
+          command: ["python3", "-m", "sglang.launch_server"]
+          args:
+            - "--model-path"
+            - "Qwen/Qwen3-14B"
+            - "--port"
+            - "8200"
+            - "--host"
+            - "0.0.0.0"
+            - "--disaggregation-mode"
+            - "decode"
+            - "--disaggregation-transfer-backend"
+            - "nixl"
+            - "--tensor-parallel-size"
+            - "4"
+            - "--log-level"
+            - "debug"
+            - "--enable-metrics"
+            - "--log-requests"
+            - "--context-length"
+            - "32000"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-pd-llm-d-modelservice-prefill
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/model: Qwen3-14B
+  template:
+    metadata:
+      labels:
+        llm-d.ai/model: Qwen3-14B
+    spec:
+      containers:
+        - name: vllm
+          image: docker.io/lmsysorg/sglang:v0.5.6.post2
+          command: ["python3", "-m", "sglang.launch_server"]
+          args:
+            - "--model-path"
+            - "Qwen/Qwen3-14B"
+            - "--port"
+            - "8000"
+            - "--host"
+            - "0.0.0.0"
+            - "--disaggregation-mode"
+            - "prefill"
+            - "--disaggregation-transfer-backend"
+            - "nixl"
+            - "--tensor-parallel-size"
+            - "1"
+            - "--log-level"
+            - "debug"
+            - "--enable-metrics"
+            - "--log-requests"
+            - "--context-length"
+            - "32000"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ms-pd-llm-d-modelservice-decode-podmonitor
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/model: Qwen3-14B
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ms-pd-llm-d-modelservice-prefill-podmonitor
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/model: Qwen3-14B

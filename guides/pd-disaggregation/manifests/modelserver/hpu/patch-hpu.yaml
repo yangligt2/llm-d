@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-pd-llm-d-modelservice-decode
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/hardware-variant: hpu
+      llm-d.ai/hardware-vendor: intel
+      llm-d.ai/model: Qwen3-8B
+  template:
+    metadata:
+      labels:
+        llm-d.ai/hardware-variant: hpu
+        llm-d.ai/hardware-vendor: intel
+        llm-d.ai/model: Qwen3-8B
+    spec:
+      containers:
+        - name: vllm
+          image: ghcr.io/llm-d/llm-d-hpu:v0.6.0
+          securityContext:
+            privileged: true
+          args:
+            - "--enforce-eager"
+            - "--gpu-memory-utilization"
+            - "0.9"
+            - "--kv-transfer-config"
+            - '{"kv_connector":"NixlConnector","kv_role":"kv_both","kv_buffer_device":"cpu"}'
+          env:
+            - name: OMPI_MCA_btl_vader_single_copy_mechanism
+              value: "none"
+            - name: HABANA_LOGS
+              value: "/tmp/habana_logs"
+            - name: UCX_TLS
+              value: "tcp"
+            - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: VLLM_NIXL_SIDE_CHANNEL_PORT
+              value: "5600"
+            - name: VLLM_LOGGING_LEVEL
+              value: "DEBUG"
+            - name: VLLM_SKIP_WARMUP
+              value: "true"
+            - name: PT_HPU_LAZY_MODE
+              value: "1"
+            - name: PT_HPU_ENABLE_LAZY_COLLECTIVES
+              value: "true"
+            - name: LD_LIBRARY_PATH
+              value: "/usr/lib/nixl_ofi:/usr/local/lib:/usr/lib:/opt/amazon/openmpi/lib:/usr/lib/habanalabs"
+            - name: DO_NOT_TRACK
+              value: "1"
+            - name: VLLM_USE_V1
+              value: "1"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-pd-llm-d-modelservice-prefill
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/hardware-variant: hpu
+      llm-d.ai/hardware-vendor: intel
+      llm-d.ai/model: Qwen3-8B
+  template:
+    metadata:
+      labels:
+        llm-d.ai/hardware-variant: hpu
+        llm-d.ai/hardware-vendor: intel
+        llm-d.ai/model: Qwen3-8B
+    spec:
+      containers:
+        - name: vllm
+          image: ghcr.io/llm-d/llm-d-hpu:v0.6.0
+          securityContext:
+            privileged: true
+          args:
+            - "--enforce-eager"
+            - "--gpu-memory-utilization"
+            - "0.9"
+            - "--kv-transfer-config"
+            - '{"kv_connector":"NixlConnector","kv_role":"kv_both","kv_buffer_device":"cpu"}'
+          env:
+            - name: OMPI_MCA_btl_vader_single_copy_mechanism
+              value: "none"
+            - name: HABANA_LOGS
+              value: "/tmp/habana_logs"
+            - name: UCX_TLS
+              value: "tcp"
+            - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: VLLM_NIXL_SIDE_CHANNEL_PORT
+              value: "5600"
+            - name: VLLM_LOGGING_LEVEL
+              value: "DEBUG"
+            - name: VLLM_SKIP_WARMUP
+              value: "true"
+            - name: PT_HPU_LAZY_MODE
+              value: "1"
+            - name: PT_HPU_ENABLE_LAZY_COLLECTIVES
+              value: "true"
+            - name: LD_LIBRARY_PATH
+              value: "/usr/lib/nixl_ofi:/usr/local/lib:/usr/lib:/opt/amazon/openmpi/lib:/usr/lib/habanalabs"
+            - name: DO_NOT_TRACK
+              value: "1"
+            - name: VLLM_USE_V1
+              value: "1"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ms-pd-llm-d-modelservice-decode-podmonitor
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/hardware-variant: hpu
+      llm-d.ai/hardware-vendor: intel
+      llm-d.ai/model: Qwen3-8B
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ms-pd-llm-d-modelservice-prefill-podmonitor
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/hardware-variant: hpu
+      llm-d.ai/hardware-vendor: intel
+      llm-d.ai/model: Qwen3-8B

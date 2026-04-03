@@ -1,0 +1,192 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-pd-llm-d-modelservice-decode
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/model: Qwen3-32B
+  template:
+    metadata:
+      labels:
+        llm-d.ai/model: Qwen3-32B
+      annotations:
+        k8s.v1.cni.cncf.io/networks: "multi-nic-compute"
+    spec:
+      serviceAccountName: default
+      initContainers:
+        - name: preprocess
+          image: ghcr.io/llm-d/llm-d-benchmark:v0.5.2
+          imagePullPolicy: Always
+          command: ["set_llmdbench_environment.py", "-e", "/shared-config/llmdbench_env.sh", "-i"]
+          env:
+            - name: NCCL_EXCLUDE_IB_HCA
+              value: "mlx5_0,mlx5_2,mlx5_4,mlx5_8,mlx5_7,mlx5_10,mlx5_12,mlx5_14,mlx5_16"
+          volumeMounts:
+          - name: shared-config
+            mountPath: /shared-config
+      containers:
+        - name: vllm
+          image: ghcr.io/llm-d/llm-d-cuda:v0.6.0
+          command:
+            - /bin/bash
+            - -c
+          args:
+            - |
+              source /shared-config/llmdbench_env.sh; vllm serve Qwen/Qwen3-32B \
+              --host 0.0.0.0 \
+              --served-model-name Qwen/Qwen3-32B \
+              --port $VLLM_METRICS_PORT \
+              --block-size $VLLM_BLOCK_SIZE \
+              --max-model-len $VLLM_MAX_MODEL_LEN \
+              --tensor-parallel-size $TP_SIZE \
+              --kv-transfer-config "{\"kv_connector\":\"NixlConnector\",\"kv_role\":\"kv_both\"}" \
+              --no-enable-log-requests \
+              --disable-uvicorn-access-log
+          env:
+            - name: NCCL_EXCLUDE_IB_HCA
+              value: "mlx5_0,mlx5_2,mlx5_4,mlx5_8,mlx5_7,mlx5_10,mlx5_12,mlx5_14,mlx5_16"
+            - name: VLLM_BLOCK_SIZE
+              value: "128"
+            - name: VLLM_MAX_MODEL_LEN
+              value: "32000"
+            - name: VLLM_INFERENCE_PORT
+              value: "8000"
+            - name: VLLM_METRICS_PORT
+              value: "8200"
+            - name: VLLM_NIXL_SIDE_CHANNEL_PORT
+              value: "5557"
+            - name: UCX_TLS
+              value: "sm,cuda_ipc,cuda_copy,tcp"
+            - name: UCX_SOCKADDR_TLS_PRIORITY
+              value: "tcp"
+            - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.podIP
+          resources:
+            limits:
+              cpu: "32"
+              memory: 128Gi
+              rdma/roce_gdr: "2"
+            requests:
+              cpu: "32"
+              memory: 128Gi
+              rdma/roce_gdr: "2"
+          securityContext:
+            capabilities:
+              add:
+              - "IPC_LOCK"
+              - "SYS_RAWIO"
+              - "NET_ADMIN"
+              - "NET_RAW"
+            runAsGroup: 0
+            runAsUser: 0
+          volumeMounts:
+            - name: shared-config
+              mountPath: /shared-config
+      volumes:
+        - name: shared-config
+          emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ms-pd-llm-d-modelservice-prefill
+spec:
+  selector:
+    matchLabels:
+      llm-d.ai/model: Qwen3-32B
+  template:
+    metadata:
+      labels:
+        llm-d.ai/model: Qwen3-32B
+      annotations:
+        k8s.v1.cni.cncf.io/networks: "multi-nic-compute"
+    spec:
+      serviceAccountName: default
+      initContainers:
+        - name: preprocess
+          image: ghcr.io/llm-d/llm-d-benchmark:v0.5.2
+          imagePullPolicy: Always
+          command: ["set_llmdbench_environment.py", "-e", "/shared-config/llmdbench_env.sh", "-i"]
+          env:
+            - name: NCCL_EXCLUDE_IB_HCA
+              value: "mlx5_0,mlx5_2,mlx5_4,mlx5_8,mlx5_7,mlx5_10,mlx5_12,mlx5_14,mlx5_16"
+          volumeMounts:
+          - name: shared-config
+            mountPath: /shared-config
+      containers:
+        - name: vllm
+          image: ghcr.io/llm-d/llm-d-cuda:v0.6.0
+          command:
+            - /bin/bash
+            - -c
+          args:
+            - |
+              source /shared-config/llmdbench_env.sh; vllm serve Qwen/Qwen3-32B \
+              --host 0.0.0.0 \
+              --served-model-name Qwen/Qwen3-32B \
+              --port $VLLM_INFERENCE_PORT \
+              --block-size $VLLM_BLOCK_SIZE \
+              --max-model-len $VLLM_MAX_MODEL_LEN \
+              --tensor-parallel-size $TP_SIZE \
+              --kv-transfer-config "{\"kv_connector\":\"NixlConnector\",\"kv_role\":\"kv_both\"}" \
+              --no-enable-log-requests \
+              --disable-uvicorn-access-log \
+              --no-enable-prefix-caching
+          env:
+            - name: NCCL_EXCLUDE_IB_HCA
+              value: "mlx5_0,mlx5_2,mlx5_4,mlx5_8,mlx5_7,mlx5_10,mlx5_12,mlx5_14,mlx5_16"
+            - name: VLLM_BLOCK_SIZE
+              value: "128"
+            - name: VLLM_MAX_MODEL_LEN
+              value: "32000"
+            - name: VLLM_INFERENCE_PORT
+              value: "8000"
+            - name: VLLM_METRICS_PORT
+              value: "8200"
+            - name: VLLM_NIXL_SIDE_CHANNEL_PORT
+              value: "5557"
+            - name: UCX_TLS
+              value: "sm,cuda_ipc,cuda_copy,tcp"
+            - name: UCX_SOCKADDR_TLS_PRIORITY
+              value: "tcp"
+            - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.podIP
+          resources:
+            limits:
+              cpu: "32"
+              memory: 128Gi
+              rdma/roce_gdr: "2"
+            requests:
+              cpu: "32"
+              memory: 128Gi
+              rdma/roce_gdr: "2"
+          securityContext:
+            capabilities:
+              add:
+              - "IPC_LOCK"
+              - "SYS_RAWIO"
+              - "NET_ADMIN"
+              - "NET_RAW"
+            runAsGroup: 0
+            runAsUser: 0
+          volumeMounts:
+            - name: shared-config
+              mountPath: /shared-config
+      volumes:
+        - name: shared-config
+          emptyDir: {}

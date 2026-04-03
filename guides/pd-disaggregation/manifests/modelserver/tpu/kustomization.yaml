@@ -1,0 +1,57 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../base
+  - ../common/podmonitors
+
+patches:
+  - path: patch-tpu.yaml
+  - target:
+      kind: Deployment
+      name: ms-pd-llm-d-modelservice-decode
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/ports
+        value:
+          - containerPort: 8000
+            name: vllm
+            protocol: TCP
+          - containerPort: 9100
+            name: tpu-kv-transfer
+            protocol: TCP
+          - containerPort: 9600
+            name: tpu-pd-coord
+            protocol: TCP
+      - op: remove
+        path: /spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu
+      - op: remove
+        path: /spec/template/spec/containers/0/resources/requests/nvidia.com~1gpu
+      - op: remove
+        path: /spec/template/spec/containers/0/resources/limits/rdma~1ib
+      - op: remove
+        path: /spec/template/spec/containers/0/resources/requests/rdma~1ib
+  - target:
+      kind: Deployment
+      name: ms-pd-llm-d-modelservice-prefill
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/ports
+        value:
+          - containerPort: 8000
+            name: vllm
+            protocol: TCP
+          - containerPort: 9100
+            name: tpu-kv-transfer
+            protocol: TCP
+          - containerPort: 9600
+            name: tpu-pd-coord
+            protocol: TCP
+      - op: remove
+        path: /spec/template/spec/containers/0/resources/limits/nvidia.com~1gpu
+      - op: remove
+        path: /spec/template/spec/containers/0/resources/requests/nvidia.com~1gpu
+      - op: remove
+        path: /spec/template/spec/containers/0/resources/limits/rdma~1ib
+      - op: remove
+        path: /spec/template/spec/containers/0/resources/requests/rdma~1ib
