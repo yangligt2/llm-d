@@ -6,6 +6,7 @@ export RESERVATION=<YOUR_RESERVATION>
 export VPC_NETWORK_NAME=<YOUR_NETWORK> # Set to "default" to use the default network
 export SUBNET_NAME=proxy-only-subnet
 export NODE_POOL=v7x-aio-singlehost
+export BENCHMARK_NODE_POOL=benchmark
 export NETWORK_FW_NAME=gke-gateway-firewall-${CLUSTER}-${NODE_POOL}
 export MACHINE_TYPE=tpu7x-standard-4t
 export CIDR_RANGE=172.16.0.0/26 # ATTN: Make sure the IP range does not overlap with other subnets!!!
