@@ -34,7 +34,8 @@ decode:
       interval: "30s"
   containers:
   - name: "vllm"
-    image: vllm/vllm-tpu:nightly-ironwood-20251222-6b879bf-c02a270
+    # image: vllm/vllm-tpu:nightly-ironwood-20251222-6b879bf-c02a270 # work but no kv transfer metric report
+    image: vllm/vllm-tpu:nightly-20260327-c8e790a-d860601 # https://hub.docker.com/r/vllm/vllm-tpu/tags
     modelCommand: vllmServe
     args:
       # Keep tensor-parallelism as the first set of arguments
@@ -42,6 +43,9 @@ decode:
       - "8"
       - "--kv-transfer-config"
       - '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_consumer", "kv_ip" : "$(POD_IP)"}'
+      - "--kv-cache-dtype=fp8"
+      - "--no-enable-prefix-caching"
+      - "--no-async-scheduling"
       - "--disable-uvicorn-access-log"
       - "--max-model-len"
       - "32000"
@@ -58,12 +62,12 @@ decode:
         protocol: TCP
     resources:
       limits:
-        memory: 64Gi
-        cpu: "16"
+        memory: 512Gi
+        cpu: "64"
         google.com/tpu: 4
       requests:
-        memory: 64Gi
-        cpu: "16"
+        memory: 512Gi
+        cpu: "64"
         google.com/tpu: 4
     mountModelVolume: true
     volumeMounts:
@@ -122,13 +126,17 @@ prefill:
       interval: "30s"
   containers:
   - name: "vllm"
-    image: vllm/vllm-tpu:nightly-ironwood-20251222-6b879bf-c02a270
+    # image: vllm/vllm-tpu:nightly-ironwood-20251222-6b879bf-c02a270 # work but no kv transfer metric report
+    image: vllm/vllm-tpu:nightly-20260327-c8e790a-d860601 # https://hub.docker.com/r/vllm/vllm-tpu/tags
     modelCommand: vllmServe
     args:
       - "--tensor-parallel-size"
       - "8"
       - "--kv-transfer-config"
       - '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_producer", "kv_ip" : "$(POD_IP)"}'
+      - "--kv-cache-dtype=fp8"
+      - "--no-enable-prefix-caching"
+      - "--no-async-scheduling"
       - "--disable-uvicorn-access-log"
       - "--max-model-len"
       - "32000"
@@ -145,12 +153,12 @@ prefill:
         protocol: TCP
     resources:
       limits:
-        memory: 64Gi
-        cpu: "16"
+        memory: 512Gi
+        cpu: "64"
         google.com/tpu: 4
       requests:
-        memory: 64Gi
-        cpu: "16"
+        memory: 512Gi
+        cpu: "64"
         google.com/tpu: 4
     mountModelVolume: true
     volumeMounts:

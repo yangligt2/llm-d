@@ -5,11 +5,14 @@ metadata:
   labels:
     app: inference-perf
 spec:
+  backoffLimit: 0  # Add this line to disable retries
   template:
     metadata:
       labels:
         app: inference-perf
     spec:
+      nodeSelector:       # Force to run in a dedicated node pool
+        cloud.google.com/gke-nodepool: benchmark-pool
       containers:
         - name: inference-perf
           image: quay.io/inference-perf/inference-perf:latest

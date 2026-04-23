@@ -61,7 +61,7 @@ else
     --cluster-version="1.35.0-gke.3047000"
 fi
 
-# Create nodepool
+# Create nodepools
 RET=$(gcloud container node-pools list --location $LOCATION --cluster=$CLUSTER --filter="name~^${NODE_POOL}$" --format="value(name)")
 if [ -n "${RET}" ]; then
   echo "Node pool ${NODE_POOL} already existed and skip creation."
@@ -77,6 +77,21 @@ else
     --disk-size=800 \
     --reservation-affinity=specific \
     --reservation=$RESERVATION
+fi
+
+RET=$(gcloud container node-pools list --location $LOCATION --cluster=$CLUSTER --filter="name~^${BENCHMARK_NODE_POOL}$" --format="value(name)")
+if [ -n "${RET}" ]; then
+  echo "Node pool ${BENCHMARK_NODE_POOL} already existed and skip creation."
+else
+  echo "Creating node pool ${BENCHMARK_NODE_POOL} ..."
+  gcloud container node-pools create ${BENCHMARK_NODE_POOL} \
+    --project=$PROJECT_ID \
+    --cluster=$CLUSTER \
+    --location=$LOCATION \
+    --node-locations=$ZONE \
+    --machine-type=e2-standard-4 \
+    --num-nodes=1 \
+    --disk-size=100
 fi
 
 # Create proxy only subnet needed by GKE gateway
