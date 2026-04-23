@@ -78,6 +78,13 @@ if kubectl get job inference-perf -n "${NAMESPACE}" > /dev/null 2>&1; then
     kubectl delete job inference-perf -n "${NAMESPACE}" --wait=true
 fi
 
+# Capture kv transfer log
+DECODE_POD=$(kubectl get pods -n llm-d-pd --no-headers -o custom-columns=":metadata.name" | grep decode)
+PREFILL_POD=$(kubectl get pods -n llm-d-pd --no-headers -o custom-columns=":metadata.name" | grep prefill)
+
+kubectl logs "$DECODE_POD" -n llm-d-pd --tail=0 -f | grep --line-buffered "kv transfer | done pull" > "${OUTPUT_DIR}/kv_transfer.log" &
+KV_TRANSFER_LOG_PID=$!
+
 echo "Deploying benchmark job..."
 kubectl apply -f "${BENCHMARK_DIR}/manifests.yaml" -n "${NAMESPACE}"
 
@@ -109,6 +116,9 @@ done
 echo ""
 
 echo -e "Benchmark status: ${GREEN}FINISHED${NC}"
+
+# Stop capturing kv transfer logs
+kill ${KV_TRANSFER_LOG_PID}
 
 # ==============================================================================
 # Step 5: Retrieve Results
