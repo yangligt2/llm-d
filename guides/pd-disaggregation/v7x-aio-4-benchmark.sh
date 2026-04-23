@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 # ==============================================================================
 # Configuration & Setup
 # ==============================================================================
@@ -19,6 +21,8 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 echo -e "Starting benchmark in namespace: ${GREEN}${NAMESPACE}${NC}"
+
+mkdir -p "$OUTPUT_DIR"
 
 # Check for required tools
 for tool in kubectl; do
@@ -46,11 +50,11 @@ if [ -z "$RAW_IP" ]; then
 else
     echo -e "Gateway IP found: ${GREEN}${RAW_IP}${NC}"
     BASE_URL="http://${RAW_IP}:80"
-    echo "Target URL: $BASE_URL"
+    echo "Target URL: ${BASE_URL}"
 
     # Update the config.yml with the dynamic Gateway IP
-    sed "s|base_url: .*|base_url: ${BASE_URL}|" "${BENCHMARK_DIR}/config.yml" > "${BENCHMARK_DIR}/config.yml.tmp" && mv "${BENCHMARK_DIR}/config.yml.tmp" "${BENCHMARK_DIR}/config.yml"
-    echo "Updated base_url in ${BENCHMARK_DIR}/config.yml"
+    sed "s|base_url: .*|base_url: ${BASE_URL}|" "${BENCHMARK_DIR}/config.yml" > "${OUTPUT_DIR}/config.yml"
+    echo "Copied ${BENCHMARK_DIR}/config.yml to ${OUTPUT_DIR}/config.yml and updated base_url to ${BASE_URL}"
 fi
 
 # ==============================================================================
@@ -61,7 +65,7 @@ echo -e "\n--- Preparing Benchmark Configuration ---"
 # Update ConfigMap
 echo "Updating ConfigMap 'inference-perf-config'..."
 kubectl delete configmap inference-perf-config -n "${NAMESPACE}" --ignore-not-found=true
-kubectl create configmap inference-perf-config -n "${NAMESPACE}" --from-file="${BENCHMARK_DIR}/config.yml"
+kubectl create configmap inference-perf-config -n "${NAMESPACE}" --from-file="${OUTPUT_DIR}/config.yml"
 
 # ==============================================================================
 # Step 3: Run Benchmark Job
@@ -119,10 +123,16 @@ if [ -z "$REPORT_DIR" ]; then
     exit 1
 fi
 
-mkdir -p "$OUTPUT_DIR"
-echo "Copying report from ${POD}:${REPORT_DIR} to ${OUTPUT_DIR}..."
+# Verify the directory actually exists in the pod
+if ! kubectl exec "${POD}" -n "${NAMESPACE}" -- test -d "${REPORT_DIR}"; then
+    echo -e "${RED}Failed: Report directory ${REPORT_DIR} does not exist in the pod.${NC}"
+    exit 1
+fi
 
-if kubectl cp "${NAMESPACE}/${POD}:${REPORT_DIR}" "$OUTPUT_DIR"; then
+REMOTE_REPORT_DIR="${NAMESPACE}/${POD}:${REPORT_DIR}"
+echo "Copying report from ${REMOTE_REPORT_DIR} to ${OUTPUT_DIR}..."
+
+if kubectl cp "${REMOTE_REPORT_DIR}" "${OUTPUT_DIR}"; then
     echo -e "${GREEN}Results successfully copied to ${OUTPUT_DIR}${NC}"
 else
     echo -e "${RED}Failed to copy results.${NC}"
