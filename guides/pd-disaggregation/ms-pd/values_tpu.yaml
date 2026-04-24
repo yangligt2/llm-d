@@ -34,8 +34,8 @@ decode:
       interval: "30s"
   containers:
   - name: "vllm"
-    # image: vllm/vllm-tpu:nightly-ironwood-20251222-6b879bf-c02a270 # work but no kv transfer metric report
-    image: vllm/vllm-tpu:nightly-20260327-c8e790a-d860601 # https://hub.docker.com/r/vllm/vllm-tpu/tags
+    # image: vllm/vllm-tpu:nightly-20260327-c8e790a-d860601 # https://hub.docker.com/r/vllm/vllm-tpu/tags
+    image: vllm/vllm-tpu:v0.18.0 # https://hub.docker.com/layers/vllm/vllm-tpu/v0.18.0
     modelCommand: vllmServe
     args:
       # Keep tensor-parallelism as the first set of arguments
@@ -126,8 +126,8 @@ prefill:
       interval: "30s"
   containers:
   - name: "vllm"
-    # image: vllm/vllm-tpu:nightly-ironwood-20251222-6b879bf-c02a270 # work but no kv transfer metric report
-    image: vllm/vllm-tpu:nightly-20260327-c8e790a-d860601 # https://hub.docker.com/r/vllm/vllm-tpu/tags
+    # image: vllm/vllm-tpu:nightly-20260327-c8e790a-d860601 # https://hub.docker.com/r/vllm/vllm-tpu/tags
+    image: vllm/vllm-tpu:v0.18.0 # https://hub.docker.com/layers/vllm/vllm-tpu/v0.18.0
     modelCommand: vllmServe
     args:
       - "--tensor-parallel-size"
