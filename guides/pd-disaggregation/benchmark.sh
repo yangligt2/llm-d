@@ -5,15 +5,15 @@ set -euo pipefail
 # ==============================================================================
 # Configuration & Setup
 # ==============================================================================
-source v7x-aio-0-env.sh
+source env.sh
 
 # Config kubectl so kubectl context points to correct cluster and locaiton.
 gcloud container clusters get-credentials $CLUSTER --location=$LOCATION
 
 NAMESPACE="${NAMESPACE:-llm-d-pd}"
 GATEWAY_NAME="${GATEWAY_NAME:-infra-pd-inference-gateway}"
-BENCHMARK_DIR="v7x-benchmark"
-OUTPUT_DIR="./v7x-perf-report"
+BENCHMARK_DIR="benchmark"
+OUTPUT_DIR="./benchmark-report"
 
 # Colors for output
 GREEN='\033[0;32m'

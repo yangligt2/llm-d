@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Source the env vars
-source v7x-aio-0-env.sh
+source env.sh
 
 # Config kubectl
 gcloud container clusters get-credentials $CLUSTER --location=$LOCATION

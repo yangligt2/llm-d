@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source v7x-aio-0-env.sh
+source env.sh
 
 # Config kubectl so kubectl context points to correct cluster and locaiton.
 gcloud container clusters get-credentials ${CLUSTER} --location=${LOCATION}

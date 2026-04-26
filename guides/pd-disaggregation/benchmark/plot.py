@@ -119,7 +119,7 @@ def plot_kv_transfer(kv_transfer_log, output_dir):
 
 
 def main():
-    report_dir = './v7x-perf-report'
+    report_dir = './benchmark-report'
     report_file = os.path.join(report_dir, 'summary_lifecycle_metrics.json')
     config_file = os.path.join(report_dir, 'config.yaml')
     kv_transfer_log = os.path.join(report_dir, 'kv_transfer.log')

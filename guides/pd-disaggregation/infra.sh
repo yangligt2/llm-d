@@ -3,7 +3,7 @@
 set -e
 
 # Source the env vars
-source v7x-aio-0-env.sh
+source env.sh
 
 # Function to check if version $1 is greater than or equal to version $2
 version_ge() {
