@@ -1,11 +1,13 @@
+import datetime
 import json
 import os
+import re
 
 import numpy as np
 import matplotlib.pyplot as plt
 import yaml
 
-STATS = ['mean', 'min', 'max', 'p0.1', 'p1', 'p5', 'p10', 'p25', 'median', 'p75', 'p90', 'p95', 'p99', 'p99.9']
+STATS = ['mean', 'min', 'p0.1', 'p1', 'p5', 'p10', 'p25', 'median', 'p75', 'p90', 'p95', 'p99', 'p99.9', 'max']
 
 def bar_plot(ax, xvals, yvals, xtick_labels, ylabel):
     ax.bar(xvals, yvals)
@@ -76,28 +78,53 @@ def plot_inference_perf_report(config_file, report_file, output_dir):
 
 
 def plot_kv_transfer(kv_transfer_log, output_dir):
-    prepare_time, pull_time, size = [], [], []
+    # Regex to find the date and time pattern (MM-DD HH:MM:SS)
+    regex = r"(\d{2}-\d{2} \d{2}:\d{2}:\d{2})"
+    ts, prepare_time, pull_time, size = [], [], [], []
     with open(kv_transfer_log, 'r') as f:
         for line in f:
-            _, _, _, prepare_time_str, pull_time_str, size_str = line.strip().split("|")
+            print(line)
+            prefix, _, _, prepare_time_str, pull_time_str, size_str = line.strip().split("|")
             prepare_time.append(float(prepare_time_str.strip().split('=')[1][:-2]))
             pull_time.append(float(pull_time_str.strip().split('=')[1][:-2]))
             size.append(float(size_str.strip().split('=')[1][:-2]))
 
-    fig, axes = plt.subplots(2, 3, figsize=(18, 8))
+            match = re.search(regex, prefix)
+            if match:
+                full_timestamp = match.group(1)
+                    # Assume the current year from the user request date
+
+                # Prepend the year to the string
+                year = 2026
+                full_timestamp_str = f"{year}-{full_timestamp}"
+                print(f"Full Timestamp String with Year: {full_timestamp_str}")
+
+                # Define the format
+                # %Y - Year with century
+                # %m - Month as a zero-padded decimal number
+                # %d - Day of the month as a zero-padded decimal number
+                # %H - Hour (24-hour clock) as a zero-padded decimal number
+                # %M - Minute as a zero-padded decimal number
+                # %S - Second as a zero-padded decimal number
+                date_format = "%Y-%m-%d %H:%M:%S"
+
+                # Parse the string into a datetime object
+                datetime_obj = datetime.datetime.strptime(full_timestamp_str, date_format)
+                ts.append(datetime_obj)
+    assert len(ts) == len(prepare_time)
+    assert len(ts) == len(pull_time)
+    assert len(ts) == len(size)
+
+    fig, axes = plt.subplots(2, 2, figsize=(18, 8))
     ax = axes[0, 0]
-    ax.plot(*cdf(prepare_time))
-    ax.set_xlabel("Prepare time (ms)")
+    ax.plot(*cdf(prepare_time), label="Prepare time")
+    ax.plot(*cdf(pull_time), label="Pull time")
+    ax.set_xlabel("Time (ms)")
     ax.set_ylim(0, 1)
     ax.set_ylabel("CDF")
+    ax.legend()
 
     ax = axes[0, 1]
-    ax.plot(*cdf(pull_time))
-    ax.set_xlabel("Pull time (ms)")
-    ax.set_ylim(0, 1)
-    ax.set_ylabel("CDF")
-
-    ax = axes[0, 2]
     ax.plot(*cdf(size))
     ax.set_xlabel("KV transfer size (MiB)")
     ax.set_ylim(0, 1)
@@ -109,13 +136,29 @@ def plot_kv_transfer(kv_transfer_log, output_dir):
     ax.set_ylabel("Prepare time (ms)")
 
     ax = axes[1, 1]
-    ax.scatter(size, pull_time)
+    ax.scatter(size, pull_time, color="C1")
     ax.set_xlabel("KV transfer size (MiB)")
     ax.set_ylabel("Pull time (ms)")
 
-    ax = axes[1, 2]
+    plt.savefig(os.path.join(output_dir, 'kv_transfer_dist.png'), bbox_inches='tight')
 
-    plt.savefig(os.path.join(output_dir, 'kv_transfer.png'), bbox_inches='tight')
+    fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
+
+    xvals = [(t - ts[0]).total_seconds() for t in ts]
+
+    ax = axes[0]
+    ax.plot(xvals, size, '.-')
+    ax.set_ylabel('KV Size (MiB)')
+    ax = axes[1]
+    ax.plot(xvals, pull_time, '.-')
+    ax.set_ylabel('Pull time (ms)')
+    ax = axes[2]
+    ax.plot(xvals, prepare_time, '.-')
+    ax.set_xlim(0, )
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Prepare time (ms)')
+
+    plt.savefig(os.path.join(output_dir, 'kv_transfer_time_series.png'), bbox_inches='tight')
 
 
 def main():
