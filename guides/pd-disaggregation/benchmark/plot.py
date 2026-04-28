@@ -160,12 +160,59 @@ def plot_kv_transfer(kv_transfer_log, output_dir):
 
     plt.savefig(os.path.join(output_dir, 'kv_transfer_time_series.png'), bbox_inches='tight')
 
+def plot_stress_nic(output_dir):
+    stats = ['mean', 'min', 'p1', 'p10', 'p50', 'max']
+    # single nic, 1 client, 1MiB request, 1KiB response, 8 tcp flows, 4 threads
+    # ms-pd-llm-d-modelservice-prefill-7b4d86cd4c-dkg8k --- (1MiB) --> ms-pd-llm-d-modelservice-decode-5f54bc9fb5-nt2wv
+    # ms-pd-llm-d-modelservice-prefill-7b4d86cd4c-dkg8k <-- (1KiB) --- ms-pd-llm-d-modelservice-decode-5f54bc9fb5-nt2wv
+    # tcp server recv rate, count: 98, min/avg/max: 142/159/175, p50/p90/p99: 159/148/142 Gbps
+    # tcp client recv rate, count: 98, min/avg/max: 138/154/170, p50/p90/p99: 154/144/138 Mbps
+    tcp_rr_rates_8f_4t = [159, 142, 142 ,148, 159, 175]
+
+    # single nic, 1 client, 1MiB request, 1KiB response, 16 tcp flows, 8 threads
+    # ms-pd-llm-d-modelservice-prefill-7b4d86cd4c-dkg8k --- (1MiB) --> ms-pd-llm-d-modelservice-decode-5f54bc9fb5-nt2wv
+    # ms-pd-llm-d-modelservice-prefill-7b4d86cd4c-dkg8k <-- (1KiB) --- ms-pd-llm-d-modelservice-decode-5f54bc9fb5-nt2wv
+    # tcp server recv rate, count: 98, min/avg/max: 187/189/191, p50/p90/p99: 189/188/187 Gbps
+    # tcp client recv rate, count: 98, min/avg/max: 182/184/186, p50/p90/p99: 185/183/182 Mbps
+    tcp_rr_rates_16f_8t = [189, 187, 187 ,188, 189, 191]
+
+    # jnt 8 tcp flows, H2H
+    # ms-pd-llm-d-modelservice-prefill-7b4d86cd4c-dkg8k --- (1MiB) --> ms-pd-llm-d-modelservice-decode-5f54bc9fb5-nt2wv
+    # ms-pd-llm-d-modelservice-prefill-7b4d86cd4c-dkg8k <-- (1KiB) --- ms-pd-llm-d-modelservice-decode-5f54bc9fb5-nt2wv
+    # jnt server recv rate, count: 58, min/avg/max: 99/104/108, p50/p90/p99: 104/102/99 Gbps
+    # jnt client recv rate, count: 0, min/avg/max: 0/0/0, p50/p90/p99: 0/0/0 Mbps
+    jnt_rates_h2h = [104, 99, 99 ,102, 104, 108]
+
+    # jnt 8 tcp flows, D2D
+    jnt_rates_d2d = [170, 158,158, 167 , 171, 174]
+
+    fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+    xticks = np.arange(len(stats)) * 4
+
+    width=0.8
+    ax.axhline(y=200, color='r', ls='--', label='Single nic line rate')
+    ax.bar(xticks, tcp_rr_rates_8f_4t, color='C0', label="tcp_rr 8flow 4thread", edgecolor='k')
+    ax.bar(xticks + width, tcp_rr_rates_16f_8t, color='C0', hatch='//',
+           label="tcp_rr 16flow 8thread", edgecolor='k')
+    ax.bar(xticks + width*2, jnt_rates_h2h, color='C1', label="JNT H2H 8flow", edgecolor='k')
+    ax.bar(xticks + width*3, jnt_rates_d2d, color='C1', hatch='//', label="JNT D2D 8flow", edgecolor='k')
+
+    ax.set_xticks(xticks + 1.5 * width)
+    ax.set_xticklabels(stats)
+
+    ax.set_ylim(0, 250)
+    ax.set_ylabel("Recv rates (Gbps)")
+    ax.legend(ncols=2)
+
+    plt.savefig(os.path.join(output_dir, 'stress_nic.png'), bbox_inches='tight')
+
 
 def main():
     report_dir = './benchmark-report'
     report_file = os.path.join(report_dir, 'summary_lifecycle_metrics.json')
     config_file = os.path.join(report_dir, 'config.yaml')
     kv_transfer_log = os.path.join(report_dir, 'kv_transfer.log')
+    plot_stress_nic(report_dir)
     plot_inference_perf_report(config_file, report_file, report_dir)
     plot_kv_transfer(kv_transfer_log, report_dir)
 
