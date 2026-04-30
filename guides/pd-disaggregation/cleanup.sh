@@ -21,9 +21,12 @@ gcloud container clusters delete ${CLUSTER} --project=${PROJECT_ID} --location=$
 
 # Delete firewall rules
 gcloud compute firewall-rules delete ${FW_RULE_NAME_1} --project=${PROJECT_ID} --quiet
+gcloud compute firewall-rules delete ${FW_RULE_NAME_2} --project=${PROJECT_ID} --quiet
 
 # Delete subnets
 gcloud compute networks subnets delete ${SUBNET_NAME_1} --region=${LOCATION} --project=${PROJECT_ID} --quiet
+gcloud compute networks subnets delete ${SUBNET_NAME_2} --region=${LOCATION} --project=${PROJECT_ID} --quiet
 
 # Delete networks
 gcloud compute networks delete ${NETWORK_NAME_1} --project=${PROJECT_ID} --quiet
+gcloud compute networks delete ${NETWORK_NAME_2} --project=${PROJECT_ID} --quiet

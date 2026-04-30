@@ -28,6 +28,18 @@ else
     --bgp-routing-mode=regional
 fi
 
+RET=$(gcloud compute networks list --project=${PROJECT_ID} --filter="name ~ ^${NETWORK_NAME_2}$" --format="value(name)")
+if [ -n "${RET}" ]; then
+  echo "Network ${NETWORK_NAME_2} already existed and skip creation."
+else
+  echo "Creating network ${NETWORK_NAME_2}..."
+  gcloud compute networks create ${NETWORK_NAME_2} \
+    --project=${PROJECT_ID} \
+    --subnet-mode=custom \
+    --mtu=8896 \
+    --bgp-routing-mode=regional
+fi
+
 MIN_VERSION="1.34.1-gke.1829001"  # min gke version required by tpuv7x
 # Get default gke version on RAPID channel
 CURRENT_VERSION=$(gcloud container get-server-config --region ${LOCATION} \
@@ -57,6 +69,7 @@ else
     --monitoring=SYSTEM,DCGM \
     --enable-ip-alias \
     --enable-dataplane-v2 \
+    --enable-multi-networking \
     --network=${NETWORK_NAME_1} \
     --subnetwork=${NETWORK_NAME_1} \
     --release-channel "rapid" \
@@ -68,6 +81,18 @@ else
     # --machine-type=n2-standard-8 \
     # --scopes cloud-platform \
     # --enable-ip-access \
+fi
+
+RET=$(gcloud compute networks subnets list --filter="name~^${SUBNET_NAME_2}$" --format="value(name)")
+if [ -n "${RET}" ]; then
+  echo "Subnet ${SUBNET_NAME_2} already existed and skip creation."
+else
+  echo "Creating subnet ${SUBNET_NAME_2} ..."
+  gcloud compute networks subnets create ${SUBNET_NAME_2}\
+    --project=$PROJECT_ID \
+    --region=$LOCATION \
+    --network=$NETWORK_NAME_2 \
+    --range=$SUBNET_CIDR_RANGE_2
 fi
 
 # Create nodepools
@@ -85,7 +110,9 @@ else
     --num-nodes=2 \
     --disk-size=800 \
     --reservation-affinity=specific \
-    --reservation=$RESERVATION
+    --reservation=$RESERVATION \
+    --additional-node-network network=$NETWORK_NAME_2,subnetwork=$SUBNET_NAME_2
+    # --enable-gvnic # is implicitly specified for tpu machine type
 fi
 
 RET=$(gcloud container node-pools list --location $LOCATION --cluster=$CLUSTER --filter="name~^${BENCHMARK_NODE_POOL}$" --format="value(name)")
@@ -115,7 +142,7 @@ else
     --project=$PROJECT_ID \
     --region=$LOCATION \
     --network=$NETWORK_NAME_1 \
-    --range=$CIDR_RANGE
+    --range=$SUBNET_CIDR_RANGE_1
 fi
 
 # Config kubectl so kubectl context points to the correct cluster and location.
@@ -136,4 +163,16 @@ else
     --network ${NETWORK_NAME_1} \
     --allow=all \
     --source-ranges=35.191.0.0/16,130.211.0.0/22 # Google health check ip range
+fi
+
+RET=$(gcloud compute firewall-rules list --filter="name~^${FW_RULE_NAME_2}$" --format="value(name)")
+if [ -n "${RET}" ]; then
+  echo "Firewall rule ${FW_RULE_NAME_2} already existed and skip creation"
+else
+  echo "Creating firewall rule ${FW_RULE_NAME_2} ..."
+  gcloud compute firewall-rules create ${FW_RULE_NAME_2} \
+    --project=${PROJECT_ID} \
+    --target-tags=${TARGET_TAG} \
+    --network ${NETWORK_NAME_2} \
+    --allow=tcp,udp,icmp
 fi
