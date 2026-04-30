@@ -15,13 +15,13 @@ version_ge() {
 # Set the project
 gcloud config set project $PROJECT_ID
 
-# Create a dedicated network with MTU 9K if needed
-RET=$(gcloud compute networks list --project=${PROJECT_ID} --filter="name ~ ^${VPC_NETWORK_NAME}$" --format="value(name)")
+# Create networks if needed
+RET=$(gcloud compute networks list --project=${PROJECT_ID} --filter="name ~ ^${NETWORK_NAME_1}$" --format="value(name)")
 if [ -n "${RET}" ]; then
-  echo "Network ${VPC_NETWORK_NAME} already existed and skip creation."
+  echo "Network ${NETWORK_NAME_1} already existed and skip creation."
 else
-  echo "Creating network ${VPC_NETWORK_NAME}..."
-  gcloud compute networks create ${VPC_NETWORK_NAME} \
+  echo "Creating network ${NETWORK_NAME_1}..."
+  gcloud compute networks create ${NETWORK_NAME_1} \
     --project=${PROJECT_ID} \
     --subnet-mode=auto \
     --mtu=8896 \
@@ -36,10 +36,10 @@ CURRENT_VERSION=$(gcloud container get-server-config --region ${LOCATION} \
     --format='value(channels.defaultVersion)')
 
 if version_ge "$CURRENT_VERSION" "$MIN_VERSION"; then
-    echo "Version $CURRENT_VERSION meets the minimum requirement of $MIN_VERSION."
+  echo "Version $CURRENT_VERSION meets the minimum requirement of $MIN_VERSION."
 else
-    echo "Error: Version $CURRENT_VERSION is too old."
-    exit 1
+  echo "Error: Version $CURRENT_VERSION is too old."
+  exit 1
 fi
 
 # Create a GKE cluster and pin to a specific GKE version for reproducibility.
@@ -51,14 +51,23 @@ if [ -n "${RET}" ]; then
 else
   echo "Creating cluster ${CLUSTER}..."
   gcloud container clusters create $CLUSTER \
+    --project ${PROJECT_ID} \
     --location=$LOCATION \
     --gateway-api=standard \
     --monitoring=SYSTEM,DCGM \
     --enable-ip-alias \
-    --network=${VPC_NETWORK_NAME} \
-    --subnetwork=${VPC_NETWORK_NAME} \
+    --enable-dataplane-v2 \
+    --network=${NETWORK_NAME_1} \
+    --subnetwork=${NETWORK_NAME_1} \
     --release-channel "rapid" \
     --cluster-version="1.35.0-gke.3047000"
+
+    # Other useful flags (not needed in this setup)
+    # --enable-dataplane-v2-metrics  \
+    # --enable-dataplane-v2-flow-observability \
+    # --machine-type=n2-standard-8 \
+    # --scopes cloud-platform \
+    # --enable-ip-access \
 fi
 
 # Create nodepools
@@ -95,35 +104,36 @@ else
 fi
 
 # Create proxy only subnet needed by GKE gateway
-RET=$(gcloud compute networks subnets list --filter="name~^${SUBNET_NAME}$" --format="value(name)")
+RET=$(gcloud compute networks subnets list --filter="name~^${SUBNET_NAME_1}$" --format="value(name)")
 if [ -n "${RET}" ]; then
-  echo "Subnet ${SUBNET_NAME} already existed and skip creation."
+  echo "Subnet ${SUBNET_NAME_1} already existed and skip creation."
 else
-  echo "Creating subnet ${SUBNET_NAME} ..."
-  gcloud compute networks subnets create ${SUBNET_NAME}\
+  echo "Creating subnet ${SUBNET_NAME_1} ..."
+  gcloud compute networks subnets create ${SUBNET_NAME_1}\
     --purpose=REGIONAL_MANAGED_PROXY \
     --role=ACTIVE \
+    --project=$PROJECT_ID \
     --region=$LOCATION \
-    --network=$VPC_NETWORK_NAME \
+    --network=$NETWORK_NAME_1 \
     --range=$CIDR_RANGE
 fi
 
-# Config kubectl so kubectl context points to correct cluster and locaiton.
+# Config kubectl so kubectl context points to the correct cluster and location.
 gcloud container clusters get-credentials $CLUSTER --location=$LOCATION
 
 # Create firewall rule with source ranges described in
 # https://docs.cloud.google.com/kubernetes-engine/docs/concepts/firewall-rules#gateway-fws
 NODE=$(kubectl get nodes -l cloud.google.com/gke-nodepool=$NODE_POOL -o jsonpath='{.items[0].metadata.name}')
 TARGET_TAG=$(gcloud compute instances describe ${NODE} --zone=${ZONE} --project=${PROJECT_ID} --format="value(tags.items)")
-RET=$(gcloud compute firewall-rules list --filter="name~^${NETWORK_FW_NAME}$" --format="value(name)")
+RET=$(gcloud compute firewall-rules list --filter="name~^${FW_RULE_NAME_1}$" --format="value(name)")
 if [ -n "${RET}" ]; then
-  echo "Firewall rule ${NETWORK_FW_NAME} already existed and skip creation"
+  echo "Firewall rule ${FW_RULE_NAME_1} already existed and skip creation"
 else
-  echo "Creating firewall rule ${NETWORK_FW_NAME} ..."
-  gcloud compute firewall-rules create ${NETWORK_FW_NAME} \
+  echo "Creating firewall rule ${FW_RULE_NAME_1} ..."
+  gcloud compute firewall-rules create ${FW_RULE_NAME_1} \
     --project=${PROJECT_ID} \
-    --target-tags=$TARGET_TAG \
-    --network ${VPC_NETWORK_NAME} \
+    --target-tags=${TARGET_TAG} \
+    --network ${NETWORK_NAME_1} \
     --allow=all \
     --source-ranges=35.191.0.0/16,130.211.0.0/22 # Google health check ip range
 fi
