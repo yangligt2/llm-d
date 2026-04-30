@@ -28,6 +28,10 @@ helmfile apply -e gke_tpu -n ${NAMESPACE}
 # Install HTTP route
 kubectl apply -f httproute.gke.yaml -n ${NAMESPACE}
 
+# Expose the secondary NIC
+sed -e "s/NETWORK_NAME_2/${NETWORK_NAME_2}/g" -e "s/SUBNET_NAME_2/${SUBNET_NAME_2}/g" network-crs.yaml > /tmp/network-crs.yaml
+kubectl apply -f /tmp/network-crs.yaml
+
 # Overwrite the default gaie-pd-epp health check policy to set
 # gaie-pd-epp health check port from default one to an allowlisted one
 kubectl apply -f gaie-pd-epp-health-check-policy.yaml

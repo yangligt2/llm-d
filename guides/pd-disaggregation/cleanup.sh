@@ -12,6 +12,9 @@ kubectl delete -f httproute.gke.yaml -n ${NAMESPACE} --ignore-not-found --wait
 kubectl delete -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/v1.2.0-rc.1/config/crd/bases/inference.networking.k8s.io_inferencepools.yaml --ignore-not-found --wait
 kubectl delete -f https://github.com/kubernetes-sigs/gateway-api-inference-extension/raw/v1.0.0/config/crd/bases/inference.networking.x-k8s.io_inferenceobjectives.yaml --ignore-not-found --wait
 
+kubectl delete network net2 --ignore-not-found --wait
+kubectl delete gkenetworkparamset net2-params --ignore-not-found --wait
+
 # Delete node pools
 gcloud container node-pools delete ${NODE_POOL} --cluster=${CLUSTER} --location=${LOCATION} --quiet
 gcloud container node-pools delete ${BENCHMARK_NODE_POOL} --cluster=${CLUSTER} --location=${LOCATION} --quiet

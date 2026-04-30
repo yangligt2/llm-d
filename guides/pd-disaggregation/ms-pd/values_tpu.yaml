@@ -22,6 +22,13 @@ decode:
     tensor: 4
   create: true
   replicas: 1
+  podAnnotations:
+    networking.gke.io/default-interface: "eth0"
+    networking.gke.io/interfaces: |
+      [
+        {"interfaceName":"eth0","network":"default"},
+        {"interfaceName":"eth1","network":"net2"}
+      ]
   extraConfig:
     nodeSelector:
       cloud.google.com/gke-tpu-topology: "2x2x1"
@@ -114,6 +121,13 @@ prefill:
     tensor: 4
   create: true
   replicas: 1
+  podAnnotations:
+    networking.gke.io/default-interface: "eth0"
+    networking.gke.io/interfaces: |
+      [
+        {"interfaceName":"eth0","network":"default"},
+        {"interfaceName":"eth1","network":"net2"}
+      ]
   extraConfig:
     nodeSelector:
       cloud.google.com/gke-tpu-topology: "2x2x1"
