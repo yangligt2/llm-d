@@ -7,13 +7,13 @@ namePrefix: pd-disaggregation-tpu-vllm-
 
 images:
   - name: REPLACE_MODEL_SERVER_IMAGE
-    newName: docker.io/vllm/vllm-tpu
-    newTag: v0.13.2
+    newName: vllm/vllm-tpu
+    newTag: nightly
 
 
 labels:
   - pairs:
-      llm-d.ai/model: Llama-3.3-70B-Instruct
+      llm-d.ai/model: Qwen3.5-397B-A17B-FP8
       llm-d.ai/guide: pd-disaggregation
       llm-d.ai/accelerator-variant: tpu
       llm-d.ai/accelerator-vendor: google
@@ -60,8 +60,8 @@ patches:
       - op: add
         path: /spec/template/spec/nodeSelector
         value:
-          cloud.google.com/gke-tpu-topology: "2x4"
-          cloud.google.com/gke-tpu-accelerator: "tpu-v6e-slice"
+          cloud.google.com/gke-tpu-topology: "2x2x1"
+          cloud.google.com/gke-tpu-accelerator: "tpu7x"
   - target:
       kind: Deployment
       name: prefill
@@ -69,5 +69,5 @@ patches:
       - op: add
         path: /spec/template/spec/nodeSelector
         value:
-          cloud.google.com/gke-tpu-topology: "2x4"
-          cloud.google.com/gke-tpu-accelerator: "tpu-v6e-slice"
+          cloud.google.com/gke-tpu-topology: "2x2x1"
+          cloud.google.com/gke-tpu-accelerator: "tpu7x"

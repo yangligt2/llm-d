@@ -10,13 +10,26 @@ spec:
         - name: modelserver
           command: ["vllm", "serve"]
           args:
-            - "meta-llama/Llama-3.3-70B-Instruct"
-            - "--disable-uvicorn-access-log"
+            - "Qwen/Qwen3.5-397B-A17B-FP8"
+            - "--max-model-len=9216"
+            - "--max-num-batched-tokens=8192"
+            - "--max-num-seqs=512"
+            - "--gpu-memory-utilization=0.9"
             - "--tensor-parallel-size=8"
-            - "--max-model-len=32000"
+            - "--async-scheduling"
+            - "--language-model-only"
+            - "--enable-auto-tool-choice"
+            - "--tool-call-parser=qwen3_coder"
+            - "--reasoning-parser=qwen3"
+            - "--limit-mm-per-prompt"
+            - '{"image": 0, "video": 0}'
+            - "--kv-cache-dtype=fp8"
+            - "--enable-expert-parallel"
+            - "--no-disable-hybrid-kv-cache-manager"
             - "--kv-transfer-config"
-            - '{"kv_connector":"TPUConnector", "kv_connector_module_path":"tpu_inference.distributed.tpu_connector", "kv_role":"kv_both", "kv_ip":"$(POD_IP)"}'
+            - '{"kv_connector":"TPUConnectorHMA","kv_connector_module_path":"tpu_inference.distributed.tpu_connector_hma","kv_role":"kv_consumer"}'
             - "--port=8200"
+            - "--disable-access-log-for-endpoints=/health,/metrics,/v1/models"
           env:
             - name: POD_IP
               valueFrom:
@@ -35,11 +48,13 @@ spec:
               protocol: TCP
           resources:
             limits:
-              cpu: "16"
-              memory: 64Gi
+              cpu: "200"
+              memory: 800Gi
+              google.com/tpu: 4
             requests:
-              cpu: "16"
-              memory: 64Gi
+              cpu: "200"
+              memory: 800Gi
+              google.com/tpu: 4
           volumeMounts:
             - mountPath: /dev/shm
               name: shm
@@ -51,7 +66,7 @@ spec:
             initialDelaySeconds: 15
             periodSeconds: 30
             timeoutSeconds: 5
-            failureThreshold: 120
+            failureThreshold: 240
           livenessProbe:
             periodSeconds: 10
             timeoutSeconds: 5
@@ -64,7 +79,7 @@ spec:
         - name: shm
           emptyDir:
             medium: Memory
-            sizeLimit: 16Gi
+            sizeLimit: 100Gi
         - name: torch-compile-cache
           emptyDir: {}
         - name: metrics-volume
