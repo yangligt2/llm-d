@@ -43,19 +43,23 @@ decode:
   - name: "vllm"
     # image: vllm/vllm-tpu:nightly-20260327-c8e790a-d860601 # https://hub.docker.com/r/vllm/vllm-tpu/tags
     image: vllm/vllm-tpu:v0.18.0 # https://hub.docker.com/layers/vllm/vllm-tpu/v0.18.0
-    modelCommand: vllmServe
+    modelCommand: custom
+    command:
+      - /bin/bash
+      - -c
     args:
-      # Keep tensor-parallelism as the first set of arguments
-      - "--tensor-parallel-size"
-      - "8"
-      - "--kv-transfer-config"
-      - '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_consumer", "kv_ip" : "$(POD_IP)"}'
-      - "--kv-cache-dtype=fp8"
-      - "--no-enable-prefix-caching"
-      - "--no-async-scheduling"
-      - "--disable-uvicorn-access-log"
-      - "--max-model-len"
-      - "32000"
+      - |
+        apt update && apt install -y vim sysstat ethtool iproute2 net-tools
+        /usr/local/bin/python3.12 /usr/local/bin/vllm serve meta-llama/Llama-3.3-70B-Instruct \
+          --port 8200 \
+          --served-model-name meta-llama/Llama-3.3-70B-Instruct \
+          --tensor-parallel-size 8 \
+          --kv-transfer-config '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_consumer", "kv_ip" : "$(POD_IP)"}' \
+          --kv-cache-dtype=fp8 \
+          --no-enable-prefix-caching \
+          --no-async-scheduling \
+          --disable-uvicorn-access-log \
+          --max-model-len 32000
     env:
       - name: POD_IP
         valueFrom:
@@ -142,18 +146,23 @@ prefill:
   - name: "vllm"
     # image: vllm/vllm-tpu:nightly-20260327-c8e790a-d860601 # https://hub.docker.com/r/vllm/vllm-tpu/tags
     image: vllm/vllm-tpu:v0.18.0 # https://hub.docker.com/layers/vllm/vllm-tpu/v0.18.0
-    modelCommand: vllmServe
+    modelCommand: custom
+    command:
+      - /bin/bash
+      - -c
     args:
-      - "--tensor-parallel-size"
-      - "8"
-      - "--kv-transfer-config"
-      - '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_producer", "kv_ip" : "$(POD_IP)"}'
-      - "--kv-cache-dtype=fp8"
-      - "--no-enable-prefix-caching"
-      - "--no-async-scheduling"
-      - "--disable-uvicorn-access-log"
-      - "--max-model-len"
-      - "32000"
+      - |
+        apt update && apt install -y vim sysstat ethtool iproute2 net-tools
+        /usr/local/bin/python3.12 /usr/local/bin/vllm serve meta-llama/Llama-3.3-70B-Instruct \
+          --port 8443 \
+         --served-model-name meta-llama/Llama-3.3-70B-Instruct \
+         --tensor-parallel-size 8 \
+         --kv-transfer-config '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_producer", "kv_ip" : "$(POD_IP)"}' \
+         --kv-cache-dtype=fp8 \
+         --no-enable-prefix-caching \
+         --no-async-scheduling \
+         --disable-uvicorn-access-log \
+         --max-model-len 32000
     env:
       - name: POD_IP
         valueFrom:
