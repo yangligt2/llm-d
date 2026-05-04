@@ -12,7 +12,7 @@ spec:
         app: inference-perf
     spec:
       nodeSelector:       # Force to run in a dedicated node pool
-        cloud.google.com/gke-nodepool: benchmark-pool
+        cloud.google.com/gke-nodepool: benchmark
       containers:
         - name: inference-perf
           image: quay.io/inference-perf/inference-perf:latest
