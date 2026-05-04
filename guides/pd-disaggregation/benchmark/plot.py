@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import yaml
 
-STATS = ['mean', 'min', 'p0.1', 'p1', 'p5', 'p10', 'p25', 'median', 'p75', 'p90', 'p95', 'p99', 'p99.9', 'max']
+STATS = ['min', 'p0.1', 'p1', 'p5', 'p10', 'p25', 'mean', 'median', 'p75', 'p90', 'p95', 'p99', 'p99.9', 'max']
 
 def bar_plot(ax, xvals, yvals, xtick_labels, ylabel):
     ax.bar(xvals, yvals)
@@ -115,32 +115,32 @@ def plot_kv_transfer(kv_transfer_log, output_dir):
     assert len(ts) == len(pull_time)
     assert len(ts) == len(size)
 
-    fig, axes = plt.subplots(2, 2, figsize=(18, 8))
-    ax = axes[0, 0]
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    ax = axes[0]
     ax.plot(*cdf(prepare_time), label="Prepare time")
     ax.plot(*cdf(pull_time), label="Pull time")
+    ax.set_xlim(0, )
     ax.set_xlabel("Time (ms)")
     ax.set_ylim(0, 1)
     ax.set_ylabel("CDF")
     ax.legend()
 
-    ax = axes[0, 1]
+    ax = axes[1]
     ax.plot(*cdf(size))
     ax.set_xlabel("KV transfer size (MiB)")
     ax.set_ylim(0, 1)
     ax.set_ylabel("CDF")
-
-    ax = axes[1, 0]
-    ax.scatter(size, prepare_time)
-    ax.set_xlabel("KV transfer size (MiB)")
-    ax.set_ylabel("Prepare time (ms)")
-
-    ax = axes[1, 1]
-    ax.scatter(size, pull_time, color="C1")
-    ax.set_xlabel("KV transfer size (MiB)")
-    ax.set_ylabel("Pull time (ms)")
-
     plt.savefig(os.path.join(output_dir, 'kv_transfer_dist.png'), bbox_inches='tight')
+
+    fig, ax = plt.subplots(1, 1, figsize=(6, 5))
+    ax.scatter(size, prepare_time, label='Prepare time')
+    ax.scatter(size, pull_time, label='Pull time')
+    ax.set_xlabel("KV transfer size (MiB)")
+    ax.set_ylabel("Time (ms)")
+    ax.set_ylim(0, )
+    ax.legend()
+    plt.savefig(os.path.join(output_dir, 'kv_transfer_time_vs_size.png'), bbox_inches='tight')
+
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
 
@@ -161,30 +161,30 @@ def plot_kv_transfer(kv_transfer_log, output_dir):
     plt.savefig(os.path.join(output_dir, 'kv_transfer_time_series.png'), bbox_inches='tight')
 
 def plot_stress_nic(output_dir):
-    stats = ['mean', 'min', 'p1', 'p10', 'p50', 'max']
+    stats = ['min', 'p1', 'p10', 'mean', 'p50', 'max']
     # single nic, 1 client, 1MiB request, 1KiB response, 8 tcp flows, 4 threads
     # ms-pd-llm-d-modelservice-prefill-7b4d86cd4c-dkg8k --- (1MiB) --> ms-pd-llm-d-modelservice-decode-5f54bc9fb5-nt2wv
     # ms-pd-llm-d-modelservice-prefill-7b4d86cd4c-dkg8k <-- (1KiB) --- ms-pd-llm-d-modelservice-decode-5f54bc9fb5-nt2wv
     # tcp server recv rate, count: 98, min/avg/max: 142/159/175, p50/p90/p99: 159/148/142 Gbps
     # tcp client recv rate, count: 98, min/avg/max: 138/154/170, p50/p90/p99: 154/144/138 Mbps
-    tcp_rr_rates_8f_4t = [159, 142, 142 ,148, 159, 175]
+    tcp_rr_rates_8f_4t = [142, 142 ,148, 159, 159, 175]
 
     # single nic, 1 client, 1MiB request, 1KiB response, 16 tcp flows, 8 threads
     # ms-pd-llm-d-modelservice-prefill-7b4d86cd4c-dkg8k --- (1MiB) --> ms-pd-llm-d-modelservice-decode-5f54bc9fb5-nt2wv
     # ms-pd-llm-d-modelservice-prefill-7b4d86cd4c-dkg8k <-- (1KiB) --- ms-pd-llm-d-modelservice-decode-5f54bc9fb5-nt2wv
     # tcp server recv rate, count: 98, min/avg/max: 187/189/191, p50/p90/p99: 189/188/187 Gbps
     # tcp client recv rate, count: 98, min/avg/max: 182/184/186, p50/p90/p99: 185/183/182 Mbps
-    tcp_rr_rates_16f_8t = [189, 187, 187 ,188, 189, 191]
+    tcp_rr_rates_16f_8t = [187, 187 ,188, 189, 189, 191]
 
     # jnt 8 tcp flows, H2H
     # ms-pd-llm-d-modelservice-prefill-7b4d86cd4c-dkg8k --- (1MiB) --> ms-pd-llm-d-modelservice-decode-5f54bc9fb5-nt2wv
     # ms-pd-llm-d-modelservice-prefill-7b4d86cd4c-dkg8k <-- (1KiB) --- ms-pd-llm-d-modelservice-decode-5f54bc9fb5-nt2wv
     # jnt server recv rate, count: 58, min/avg/max: 99/104/108, p50/p90/p99: 104/102/99 Gbps
     # jnt client recv rate, count: 0, min/avg/max: 0/0/0, p50/p90/p99: 0/0/0 Mbps
-    jnt_rates_h2h = [104, 99, 99 ,102, 104, 108]
+    jnt_rates_h2h = [99, 99 ,102, 104, 104, 108]
 
     # jnt 8 tcp flows, D2D
-    jnt_rates_d2d = [170, 158,158, 167 , 171, 174]
+    jnt_rates_d2d = [158,158, 167, 170, 171, 174]
 
     fig, ax = plt.subplots(1, 1, figsize=(8, 6))
     xticks = np.arange(len(stats)) * 4
@@ -208,7 +208,7 @@ def plot_stress_nic(output_dir):
 
 
 def main():
-    report_dir = './benchmark-report'
+    report_dir = './benchmark-report-bkp'
     report_file = os.path.join(report_dir, 'summary_lifecycle_metrics.json')
     config_file = os.path.join(report_dir, 'config.yaml')
     kv_transfer_log = os.path.join(report_dir, 'kv_transfer.log')
