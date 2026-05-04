@@ -80,7 +80,11 @@ KV_TRANSFER_LOG_PID=$!
 echo "Deploying benchmark job..."
 kubectl apply -f "${BENCHMARK_DIR}/manifests.yaml" -n "${NAMESPACE}"
 
-# TODO(zhengxux): launch sar -n DEV 1 on decode pod and capture rx rate
+# Launch sar on decode pod to capture rx rate
+kubectl exec "${DECODE_POD}" -n "${NAMESPACE}" -- pkill -f sar || true
+REMOTE_SAR_LOG="${NAMESPACE}/${DECODE_POD}:/tmp/sar.log"
+readonly SAR_CMD="nohup sar -n DEV --iface=eth0,eth1 2 -o /tmp/sar.log > /dev/null 2>&1 &"
+SAR_PID=$(kubectl exec "${DECODE_POD}" -n "${NAMESPACE}" -- bash -c "${SAR_CMD} echo \$!")
 
 # ==============================================================================
 # Step 4: Wait for Execution
@@ -111,6 +115,7 @@ echo ""
 
 echo -e "Benchmark status: ${GREEN}FINISHED${NC}"
 
+kubectl exec "${DECODE_POD}" -n "${NAMESPACE}" -- kill -9 "${SAR_PID}" || true
 # Stop capturing kv transfer logs
 kill ${KV_TRANSFER_LOG_PID}
 
@@ -139,8 +144,18 @@ echo "Copying report from ${REMOTE_REPORT_DIR} to ${OUTPUT_DIR}..."
 if kubectl cp "${REMOTE_REPORT_DIR}" "${OUTPUT_DIR}"; then
   echo -e "${GREEN}Results successfully copied to ${OUTPUT_DIR}${NC}"
 else
-  echo -e "${RED}Failed to copy results.${NC}"
+  echo -e "${RED}Failed to copy "${REMOTE_REPORT_DIR}".${NC}"
   exit 1
 fi
+
+echo "Copying report from ${REMOTE_SAR_LOG} to ${OUTPUT_DIR}/sar.log..."
+if kubectl cp "${REMOTE_SAR_LOG}" "${OUTPUT_DIR}/sar.log"; then
+  echo -e "${GREEN}Successfully copied to ${OUTPUT_DIR}${NC}"
+else
+  echo -e "${RED}Failed to copy "${REMOTE_SAR_LOG}".${NC}"
+  exit 1
+fi
+
+sar -n DEV -f "${OUTPUT_DIR}/sar.log" --iface=eth0,eth1 > "${OUTPUT_DIR}/sar.csv"
 
 echo -e "\n${GREEN}Benchmark completed successfully!${NC}"
