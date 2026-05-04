@@ -7,8 +7,8 @@ set -euo pipefail
 # ==============================================================================
 source env.sh
 
-# Config kubectl so kubectl context points to correct cluster and locaiton.
-gcloud container clusters get-credentials $CLUSTER --location=$LOCATION
+# Config kubectl so kubectl context points to correct cluster and location.
+gcloud container clusters get-credentials "${CLUSTER}" --location="${LOCATION}"
 
 NAMESPACE="${NAMESPACE:-llm-d-pd}"
 GATEWAY_NAME="${GATEWAY_NAME:-infra-pd-inference-gateway}"
@@ -22,39 +22,31 @@ NC='\033[0m' # No Color
 
 echo -e "Starting benchmark in namespace: ${GREEN}${NAMESPACE}${NC}"
 
-mkdir -p "$OUTPUT_DIR"
-
-# Check for required tools
-for tool in kubectl; do
-    if ! command -v $tool &> /dev/null; then
-        echo -e "${RED}Error: $tool is not installed.${NC}"
-        exit 1
-    fi
-done
-
 # Check for required files
-if [ ! -d "$BENCHMARK_DIR" ]; then
-     echo -e "${RED}Error: Directory '$BENCHMARK_DIR' not found. Are you in the correct directory?${NC}"
-     exit 1
+if [ ! -d "${BENCHMARK_DIR}" ]; then
+  echo -e "${RED}Error: Directory '${BENCHMARK_DIR}' not found. Are you in the correct directory?${NC}"
+  exit 1
 fi
+
+mkdir -p "${OUTPUT_DIR}"
 
 # ==============================================================================
 # Step 1: Verify Gateway
 # ==============================================================================
 echo -e "\n--- Checking Gateway ---"
-RAW_IP=$(kubectl get gateway "$GATEWAY_NAME" -n "${NAMESPACE}" -o jsonpath='{.status.addresses[0].value}' 2>/dev/null)
+RAW_IP=$(kubectl get gateway "${GATEWAY_NAME}" -n "${NAMESPACE}" -o jsonpath='{.status.addresses[0].value}' 2>/dev/null)
 
-if [ -z "$RAW_IP" ]; then
-    echo -e "${RED}Gateway IP not assigned yet. Cannot run benchmark.${NC}"
-    exit 1
+if [ -z "${RAW_IP}" ]; then
+  echo -e "${RED}Gateway IP not assigned yet. Cannot run benchmark.${NC}"
+  exit 1
 else
-    echo -e "Gateway IP found: ${GREEN}${RAW_IP}${NC}"
-    BASE_URL="http://${RAW_IP}:80"
-    echo "Target URL: ${BASE_URL}"
+  echo -e "Gateway IP found: ${GREEN}${RAW_IP}${NC}"
+  BASE_URL="http://${RAW_IP}:80"
+  echo "Target URL: ${BASE_URL}"
 
-    # Update the config.yml with the dynamic Gateway IP
-    sed "s|base_url: .*|base_url: ${BASE_URL}|" "${BENCHMARK_DIR}/config.yml" > "${OUTPUT_DIR}/config.yml"
-    echo "Copied ${BENCHMARK_DIR}/config.yml to ${OUTPUT_DIR}/config.yml and updated base_url to ${BASE_URL}"
+  # Update the config.yml with the dynamic Gateway IP
+  sed "s|base_url: .*|base_url: ${BASE_URL}|" "${BENCHMARK_DIR}/config.yml" > "${OUTPUT_DIR}/config.yml"
+  echo "Copied ${BENCHMARK_DIR}/config.yml to ${OUTPUT_DIR}/config.yml and updated base_url to ${BASE_URL}"
 fi
 
 # ==============================================================================
@@ -74,19 +66,21 @@ echo -e "\n--- Starting Benchmark Job ---"
 
 # Clean up previous job
 if kubectl get job inference-perf -n "${NAMESPACE}" > /dev/null 2>&1; then
-    echo "Deleting previous benchmark job..."
-    kubectl delete job inference-perf -n "${NAMESPACE}" --wait=true
+  echo "Deleting previous benchmark job..."
+  kubectl delete job inference-perf -n "${NAMESPACE}" --wait=true
 fi
 
 # Capture kv transfer log
 DECODE_POD=$(kubectl get pods -n llm-d-pd --no-headers -o custom-columns=":metadata.name" | grep decode)
-PREFILL_POD=$(kubectl get pods -n llm-d-pd --no-headers -o custom-columns=":metadata.name" | grep prefill)
+# PREFILL_POD=$(kubectl get pods -n llm-d-pd --no-headers -o custom-columns=":metadata.name" | grep prefill)
 
-kubectl logs "$DECODE_POD" -n llm-d-pd --tail=0 -f | grep --line-buffered "kv transfer | done pull" > "${OUTPUT_DIR}/kv_transfer.log" &
+kubectl logs "${DECODE_POD}" -n llm-d-pd --tail=0 -f | grep --line-buffered "kv transfer | done pull" > "${OUTPUT_DIR}/kv_transfer.log" &
 KV_TRANSFER_LOG_PID=$!
 
 echo "Deploying benchmark job..."
 kubectl apply -f "${BENCHMARK_DIR}/manifests.yaml" -n "${NAMESPACE}"
+
+# TODO(zhengxux): launch sar -n DEV 1 on decode pod and capture rx rate
 
 # ==============================================================================
 # Step 4: Wait for Execution
@@ -95,23 +89,23 @@ echo -e "\n--- Waiting for Benchmark Execution ---"
 
 echo "Waiting for pod to be ready..."
 if kubectl wait --for=condition=Ready pod -l app=inference-perf -n "${NAMESPACE}" --timeout=1200s > /dev/null; then
-    POD=$(kubectl get pods -l app=inference-perf -n "${NAMESPACE}" -o jsonpath='{.items[0].metadata.name}')
-    echo -e "Benchmark Pod running: ${GREEN}${POD}${NC}"
+  POD=$(kubectl get pods -l app=inference-perf -n "${NAMESPACE}" -o jsonpath='{.items[0].metadata.name}')
+  echo -e "Benchmark Pod running: ${GREEN}${POD}${NC}"
 else
-    echo -e "${RED}Timeout waiting for benchmark pod to be ready.${NC}"
-    exit 1
+  echo -e "${RED}Timeout waiting for benchmark pod to be ready.${NC}"
+  exit 1
 fi
 
 echo "Waiting for benchmark completion (this may take a while)..."
-until kubectl logs "$POD" -n "${NAMESPACE}" 2>/dev/null | grep -q "Benchmark finished"; do
-    # Check if pod failed
-    PHASE=$(kubectl get pod "$POD" -n "${NAMESPACE}" -o jsonpath='{.status.phase}')
-    if [ "$PHASE" == "Failed" ]; then
-        echo -e "\n${RED}Benchmark Pod Failed.${NC}"
-        exit 1
-    fi
-    echo -n "."
-    sleep 5
+until kubectl logs "${POD}" -n "${NAMESPACE}" 2>/dev/null | grep -q "Benchmark finished"; do
+  # Check if pod failed
+  PHASE=$(kubectl get pod "${POD}" -n "${NAMESPACE}" -o jsonpath='{.status.phase}')
+  if [ "${PHASE}" == "Failed" ]; then
+    echo -e "\n${RED}Benchmark Pod Failed.${NC}"
+    exit 1
+  fi
+  echo -n "."
+  sleep 5
 done
 echo ""
 
@@ -126,27 +120,27 @@ kill ${KV_TRANSFER_LOG_PID}
 echo -e "\n--- Retrieving Results ---"
 
 # Get the report directory path from logs
-REPORT_DIR=$(kubectl logs "$POD" -n "${NAMESPACE}" | grep "Report files will be stored at" | awk -F': ' '{print $NF}' | tr -d '\r')
+REPORT_DIR=$(kubectl logs "${POD}" -n "${NAMESPACE}" | grep "Report files will be stored at" | awk -F': ' '{print $NF}' | tr -d '\r')
 
-if [ -z "$REPORT_DIR" ]; then
-    echo -e "${RED}Could not determine remote report directory from logs.${NC}"
-    exit 1
+if [ -z "${REPORT_DIR}" ]; then
+  echo -e "${RED}Could not determine remote report directory from logs.${NC}"
+  exit 1
 fi
 
 # Verify the directory actually exists in the pod
 if ! kubectl exec "${POD}" -n "${NAMESPACE}" -- test -d "${REPORT_DIR}"; then
-    echo -e "${RED}Failed: Report directory ${REPORT_DIR} does not exist in the pod.${NC}"
-    exit 1
+  echo -e "${RED}Failed: Report directory ${REPORT_DIR} does not exist in the pod.${NC}"
+  exit 1
 fi
 
 REMOTE_REPORT_DIR="${NAMESPACE}/${POD}:${REPORT_DIR}"
 echo "Copying report from ${REMOTE_REPORT_DIR} to ${OUTPUT_DIR}..."
 
 if kubectl cp "${REMOTE_REPORT_DIR}" "${OUTPUT_DIR}"; then
-    echo -e "${GREEN}Results successfully copied to ${OUTPUT_DIR}${NC}"
+  echo -e "${GREEN}Results successfully copied to ${OUTPUT_DIR}${NC}"
 else
-    echo -e "${RED}Failed to copy results.${NC}"
-    exit 1
+  echo -e "${RED}Failed to copy results.${NC}"
+  exit 1
 fi
 
 echo -e "\n${GREEN}Benchmark completed successfully!${NC}"
