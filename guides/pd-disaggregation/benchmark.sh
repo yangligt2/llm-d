@@ -44,9 +44,9 @@ else
   BASE_URL="http://${RAW_IP}:80"
   echo "Target URL: ${BASE_URL}"
 
-  # Update the config.yml with the dynamic Gateway IP
-  sed "s|base_url: .*|base_url: ${BASE_URL}|" "${BENCHMARK_DIR}/config.yml" > "${OUTPUT_DIR}/config.yml"
-  echo "Copied ${BENCHMARK_DIR}/config.yml to ${OUTPUT_DIR}/config.yml and updated base_url to ${BASE_URL}"
+  # Update the config.yaml with the dynamic Gateway IP
+  sed "s|base_url: .*|base_url: ${BASE_URL}|" "${BENCHMARK_DIR}/config.yaml" > "${OUTPUT_DIR}/config.yaml"
+  echo "Copied ${BENCHMARK_DIR}/config.yaml to ${OUTPUT_DIR}/config.yaml and updated base_url to ${BASE_URL}"
 fi
 
 # ==============================================================================
@@ -57,7 +57,7 @@ echo -e "\n--- Preparing Benchmark Configuration ---"
 # Update ConfigMap
 echo "Updating ConfigMap 'inference-perf-config'..."
 kubectl delete configmap inference-perf-config -n "${NAMESPACE}" --ignore-not-found=true
-kubectl create configmap inference-perf-config -n "${NAMESPACE}" --from-file="${OUTPUT_DIR}/config.yml"
+kubectl create configmap inference-perf-config -n "${NAMESPACE}" --from-file="${OUTPUT_DIR}/config.yaml"
 
 # ==============================================================================
 # Step 3: Run Benchmark Job
