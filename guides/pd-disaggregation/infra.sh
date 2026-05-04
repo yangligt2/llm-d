@@ -4,23 +4,13 @@ set -e
 
 # Source the env vars
 source env.sh
-
-# Function to check if version $1 is greater than or equal to version $2
-version_ge() {
-    # If the sorted version of both is the same as sorting them with -V,
-    # and the first one comes last or they are equal, it's >=.
-    [ "$(printf '%s\n%s' "$1" "$2" | sort -V | head -n1)" == "$2" ]
-}
+source utils.sh
 
 # Set the project
 gcloud config set project $PROJECT_ID
 
 # Create networks if needed
-RET=$(gcloud compute networks list --project=${PROJECT_ID} --filter="name ~ ^${NETWORK_NAME_1}$" --format="value(name)")
-if [ -n "${RET}" ]; then
-  echo "Network ${NETWORK_NAME_1} already existed and skip creation."
-else
-  echo "Creating network ${NETWORK_NAME_1}..."
+if ! check_net_exists "${NETWORK_NAME_1}" "${PROJECT_ID}"; then
   gcloud compute networks create ${NETWORK_NAME_1} \
     --project=${PROJECT_ID} \
     --subnet-mode=auto \
@@ -28,11 +18,7 @@ else
     --bgp-routing-mode=regional
 fi
 
-RET=$(gcloud compute networks list --project=${PROJECT_ID} --filter="name ~ ^${NETWORK_NAME_2}$" --format="value(name)")
-if [ -n "${RET}" ]; then
-  echo "Network ${NETWORK_NAME_2} already existed and skip creation."
-else
-  echo "Creating network ${NETWORK_NAME_2}..."
+if ! check_net_exists "${NETWORK_NAME_2}" "${PROJECT_ID}"; then
   gcloud compute networks create ${NETWORK_NAME_2} \
     --project=${PROJECT_ID} \
     --subnet-mode=custom \
@@ -40,6 +26,28 @@ else
     --bgp-routing-mode=regional
 fi
 
+# Create proxy only subnet needed by GKE gateway
+if ! check_subnet_exists "${SUBNET_NAME_1}" "${LOCATION}" "${PROJECT_ID}"; then
+  gcloud compute networks subnets create ${SUBNET_NAME_1}\
+    --purpose=REGIONAL_MANAGED_PROXY \
+    --role=ACTIVE \
+    --project=$PROJECT_ID \
+    --region=$LOCATION \
+    --network=$NETWORK_NAME_1 \
+    --range=$SUBNET_CIDR_RANGE_1
+fi
+
+# Create 2nd subnet needed by GKE multi-networking
+if ! check_subnet_exists "${SUBNET_NAME_2}" "${LOCATION}" "${PROJECT_ID}"; then
+  gcloud compute networks subnets create ${SUBNET_NAME_2}\
+    --project=$PROJECT_ID \
+    --region=$LOCATION \
+    --network=$NETWORK_NAME_2 \
+    --range=$SUBNET_CIDR_RANGE_2
+fi
+
+# Command to check available gke versions on each channel in a region:
+# $ gcloud container get-server-config --region us-central1 --format="yaml(channels)"
 MIN_VERSION="1.34.1-gke.1829001"  # min gke version required by tpuv7x
 # Get default gke version on RAPID channel
 CURRENT_VERSION=$(gcloud container get-server-config --region ${LOCATION} \
@@ -55,13 +63,7 @@ else
 fi
 
 # Create a GKE cluster and pin to a specific GKE version for reproducibility.
-# Command to check available gke versions on each channel in a region:
-# $ gcloud container get-server-config --region us-central1 --format="yaml(channels)"
-RET=$(gcloud container clusters list --location $LOCATION --filter="name~^${CLUSTER}$" --format="value(name)")
-if [ -n "${RET}" ]; then
-  echo "Cluster ${CLUSTER} already existed and skip creation."
-else
-  echo "Creating cluster ${CLUSTER}..."
+if ! check_cluster_exists "${CLUSTER}" "${LOCATION}" "${PROJECT_ID}"; then
   gcloud container clusters create $CLUSTER \
     --project ${PROJECT_ID} \
     --location=$LOCATION \
@@ -83,24 +85,8 @@ else
     # --enable-ip-access \
 fi
 
-RET=$(gcloud compute networks subnets list --filter="name~^${SUBNET_NAME_2}$" --format="value(name)")
-if [ -n "${RET}" ]; then
-  echo "Subnet ${SUBNET_NAME_2} already existed and skip creation."
-else
-  echo "Creating subnet ${SUBNET_NAME_2} ..."
-  gcloud compute networks subnets create ${SUBNET_NAME_2}\
-    --project=$PROJECT_ID \
-    --region=$LOCATION \
-    --network=$NETWORK_NAME_2 \
-    --range=$SUBNET_CIDR_RANGE_2
-fi
-
 # Create nodepools
-RET=$(gcloud container node-pools list --location $LOCATION --cluster=$CLUSTER --filter="name~^${NODE_POOL}$" --format="value(name)")
-if [ -n "${RET}" ]; then
-  echo "Node pool ${NODE_POOL} already existed and skip creation."
-else
-  echo "Creating node pool ${NODE_POOL} ..."
+if ! check_node_pool_exists "${NODE_POOL}" "${CLUSTER}" "${LOCATION}" "${PROJECT_ID}"; then
   gcloud container node-pools create $NODE_POOL \
     --project=$PROJECT_ID \
     --cluster=$CLUSTER \
@@ -115,11 +101,7 @@ else
     # --enable-gvnic # is implicitly specified for tpu machine type
 fi
 
-RET=$(gcloud container node-pools list --location $LOCATION --cluster=$CLUSTER --filter="name~^${BENCHMARK_NODE_POOL}$" --format="value(name)")
-if [ -n "${RET}" ]; then
-  echo "Node pool ${BENCHMARK_NODE_POOL} already existed and skip creation."
-else
-  echo "Creating node pool ${BENCHMARK_NODE_POOL} ..."
+if ! check_node_pool_exists "${BENCHMARK_NODE_POOL}" "${CLUSTER}" "${LOCATION}" "${PROJECT_ID}"; then
   gcloud container node-pools create ${BENCHMARK_NODE_POOL} \
     --project=$PROJECT_ID \
     --cluster=$CLUSTER \
@@ -130,21 +112,6 @@ else
     --disk-size=100
 fi
 
-# Create proxy only subnet needed by GKE gateway
-RET=$(gcloud compute networks subnets list --filter="name~^${SUBNET_NAME_1}$" --format="value(name)")
-if [ -n "${RET}" ]; then
-  echo "Subnet ${SUBNET_NAME_1} already existed and skip creation."
-else
-  echo "Creating subnet ${SUBNET_NAME_1} ..."
-  gcloud compute networks subnets create ${SUBNET_NAME_1}\
-    --purpose=REGIONAL_MANAGED_PROXY \
-    --role=ACTIVE \
-    --project=$PROJECT_ID \
-    --region=$LOCATION \
-    --network=$NETWORK_NAME_1 \
-    --range=$SUBNET_CIDR_RANGE_1
-fi
-
 # Config kubectl so kubectl context points to the correct cluster and location.
 gcloud container clusters get-credentials $CLUSTER --location=$LOCATION
 
@@ -152,11 +119,7 @@ gcloud container clusters get-credentials $CLUSTER --location=$LOCATION
 # https://docs.cloud.google.com/kubernetes-engine/docs/concepts/firewall-rules#gateway-fws
 NODE=$(kubectl get nodes -l cloud.google.com/gke-nodepool=$NODE_POOL -o jsonpath='{.items[0].metadata.name}')
 TARGET_TAG=$(gcloud compute instances describe ${NODE} --zone=${ZONE} --project=${PROJECT_ID} --format="value(tags.items)")
-RET=$(gcloud compute firewall-rules list --filter="name~^${FW_RULE_NAME_1}$" --format="value(name)")
-if [ -n "${RET}" ]; then
-  echo "Firewall rule ${FW_RULE_NAME_1} already existed and skip creation"
-else
-  echo "Creating firewall rule ${FW_RULE_NAME_1} ..."
+if ! check_fw_rule_exists "${FW_RULE_NAME_1}" "${PROJECT_ID}"; then
   gcloud compute firewall-rules create ${FW_RULE_NAME_1} \
     --project=${PROJECT_ID} \
     --target-tags=${TARGET_TAG} \
@@ -165,11 +128,7 @@ else
     --source-ranges=35.191.0.0/16,130.211.0.0/22 # Google health check ip range
 fi
 
-RET=$(gcloud compute firewall-rules list --filter="name~^${FW_RULE_NAME_2}$" --format="value(name)")
-if [ -n "${RET}" ]; then
-  echo "Firewall rule ${FW_RULE_NAME_2} already existed and skip creation"
-else
-  echo "Creating firewall rule ${FW_RULE_NAME_2} ..."
+if ! check_fw_rule_exists "${FW_RULE_NAME_2}" "${PROJECT_ID}"; then
   gcloud compute firewall-rules create ${FW_RULE_NAME_2} \
     --project=${PROJECT_ID} \
     --target-tags=${TARGET_TAG} \
