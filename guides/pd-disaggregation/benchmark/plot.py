@@ -1,12 +1,16 @@
-import datetime
 import json
 import os
 import re
 
-import numpy as np
+from datetime import datetime
+
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import pytz
 import yaml
 
+nic_line_rate_Gbps = 200
 STATS = ['min', 'p0.1', 'p1', 'p5', 'p10', 'p25', 'mean', 'median', 'p75', 'p90', 'p95', 'p99', 'p99.9', 'max']
 
 def bar_plot(ax, xvals, yvals, xtick_labels, ylabel):
@@ -77,13 +81,13 @@ def plot_inference_perf_report(config_file, report_file, output_dir):
     plt.savefig(os.path.join(output_dir, 'benchmark_results.png'), bbox_inches='tight')
 
 
-def plot_kv_transfer(kv_transfer_log, output_dir):
+def plot_kv_transfer(kv_transfer_log, sar_log="", output_dir='.'):
+    nic_rx_rates = parse_sar_log(sar_log) if sar_log else None
     # Regex to find the date and time pattern (MM-DD HH:MM:SS)
     regex = r"(\d{2}-\d{2} \d{2}:\d{2}:\d{2})"
     ts, prepare_time, pull_time, size = [], [], [], []
     with open(kv_transfer_log, 'r') as f:
         for line in f:
-            print(line)
             prefix, _, _, prepare_time_str, pull_time_str, size_str = line.strip().split("|")
             prepare_time.append(float(prepare_time_str.strip().split('=')[1][:-2]))
             pull_time.append(float(pull_time_str.strip().split('=')[1][:-2]))
@@ -97,7 +101,7 @@ def plot_kv_transfer(kv_transfer_log, output_dir):
                 # Prepend the year to the string
                 year = 2026
                 full_timestamp_str = f"{year}-{full_timestamp}"
-                print(f"Full Timestamp String with Year: {full_timestamp_str}")
+                # print(f"Full Timestamp String with Year: {full_timestamp_str}")
 
                 # Define the format
                 # %Y - Year with century
@@ -109,7 +113,8 @@ def plot_kv_transfer(kv_transfer_log, output_dir):
                 date_format = "%Y-%m-%d %H:%M:%S"
 
                 # Parse the string into a datetime object
-                datetime_obj = datetime.datetime.strptime(full_timestamp_str, date_format)
+                datetime_obj = datetime.strptime(full_timestamp_str, date_format)
+                datetime_obj = pytz.utc.localize(datetime_obj)
                 ts.append(datetime_obj)
     assert len(ts) == len(prepare_time)
     assert len(ts) == len(pull_time)
@@ -149,14 +154,24 @@ def plot_kv_transfer(kv_transfer_log, output_dir):
     ax = axes[0]
     ax.plot(xvals, size, '.-')
     ax.set_ylabel('KV Size (MiB)')
+
     ax = axes[1]
-    ax.plot(xvals, pull_time, '.-')
-    ax.set_ylabel('Pull time (ms)')
-    ax = axes[2]
-    ax.plot(xvals, prepare_time, '.-')
+    ax.plot(xvals, prepare_time, '.-', label='Prepare time')
+    ax.plot(xvals, pull_time, '.-', label='Pull time')
     ax.set_xlim(0, )
+    ax.set_ylabel('Time (ms)')
+    ax.set_ylim(0, )
+    ax.legend()
+
+    ax = axes[2]
+    for iface, group in nic_rx_rates.groupby('IFACE'):
+        mask = group['Time'] >= ts[0]
+        nic_util = group[mask]['rxkB/s'] * 8 / 1000000 / nic_line_rate_Gbps
+        ax.plot((group[mask]['Time'] - ts[0]).dt.total_seconds(), nic_util, marker='.', label=iface)
+    ax.legend()
     ax.set_xlabel('Time (s)')
-    ax.set_ylabel('Prepare time (ms)')
+    ax.set_ylabel('NIC Util')
+    ax.set_ylim(0, 1)
 
     plt.savefig(os.path.join(output_dir, 'kv_transfer_time_series.png'), bbox_inches='tight')
 
@@ -207,14 +222,52 @@ def plot_stress_nic(output_dir):
     plt.savefig(os.path.join(output_dir, 'stress_nic.png'), bbox_inches='tight')
 
 
+def parse_sar_log(sar_log):
+    parsed_data = []
+    date_str = ""
+    la_tz = pytz.timezone("America/Los_Angeles")
+    with open(sar_log, 'r') as f:
+        for i, line in enumerate(f):
+            line = line.strip()
+            if not line:
+                continue
+            if i == 0:
+                cols = line.split('\t')
+                date_str = cols[1]
+                continue
+            cols = line.split()
+            # Filter for data lines: Must have HH:MM:SS AM/PM format
+            # Skip the average lines
+            if not (len(cols) >= 6 and cols[1] in ['AM', 'PM']):
+                continue
+            # Skip the column header line
+            if cols[2] == 'IFACE':
+                continue
+            # Parse timestamp and numeric values
+            time_str = f"{cols[0]} {cols[1]}"
+            time_obj = datetime.strptime(date_str + " " + time_str, "%m/%d/%Y %I:%M:%S %p")
+            time_obj = la_tz.localize(time_obj)
+            iface = cols[2]
+            rx_kb_s = float(cols[5])
+
+            parsed_data.append({
+                'Time': time_obj,
+                'IFACE': iface,
+                'rxkB/s': rx_kb_s
+            })
+
+    return pd.DataFrame(parsed_data)
+
+
 def main():
-    report_dir = './benchmark-report-bkp'
+    report_dir = './benchmark-report'
     report_file = os.path.join(report_dir, 'summary_lifecycle_metrics.json')
     config_file = os.path.join(report_dir, 'config.yaml')
     kv_transfer_log = os.path.join(report_dir, 'kv_transfer.log')
+    sar_log = os.path.join(report_dir, 'sar.csv')
     plot_stress_nic(report_dir)
     plot_inference_perf_report(config_file, report_file, report_dir)
-    plot_kv_transfer(kv_transfer_log, report_dir)
+    plot_kv_transfer(kv_transfer_log, sar_log, report_dir)
 
 
 if __name__ == '__main__':
