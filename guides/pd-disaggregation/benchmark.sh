@@ -144,7 +144,7 @@ echo "Copying report from ${REMOTE_REPORT_DIR} to ${OUTPUT_DIR}..."
 if kubectl cp "${REMOTE_REPORT_DIR}" "${OUTPUT_DIR}"; then
   echo -e "${GREEN}Results successfully copied to ${OUTPUT_DIR}${NC}"
 else
-  echo -e "${RED}Failed to copy "${REMOTE_REPORT_DIR}".${NC}"
+  echo -e "${RED}Failed to copy ${REMOTE_REPORT_DIR}.${NC}"
   exit 1
 fi
 
@@ -152,7 +152,7 @@ echo "Copying report from ${REMOTE_SAR_LOG} to ${OUTPUT_DIR}/sar.log..."
 if kubectl cp "${REMOTE_SAR_LOG}" "${OUTPUT_DIR}/sar.log"; then
   echo -e "${GREEN}Successfully copied to ${OUTPUT_DIR}${NC}"
 else
-  echo -e "${RED}Failed to copy "${REMOTE_SAR_LOG}".${NC}"
+  echo -e "${RED}Failed to copy ${REMOTE_SAR_LOG}.${NC}"
   exit 1
 fi
 
