@@ -48,12 +48,9 @@ jobs:
       accelerator_type: H100
       pod_wait_timeout: '30m'
       pod_readiness_delay: 180
-      # Slim transform: reduce model to Qwen3-0.6B, 1 GPU per pod, reduce memory
       pre_deploy_script: |
         echo "Applying pd-disaggregation slim transforms..."
         cd guides/pd-disaggregation/modelserver/gpu/vllm/base
-        yq e '.spec.template.spec.containers[0].args[0] = "Qwen/Qwen3-0.6B"' -i patch-prefill.yaml
-        yq e '.spec.template.spec.containers[0].args[0] = "Qwen/Qwen3-0.6B"' -i patch-decode.yaml
         yq e 'del(.spec.template.spec.containers[0].resources.limits.memory)' -i patch-prefill.yaml
         yq e 'del(.spec.template.spec.containers[0].resources.requests.memory)' -i patch-prefill.yaml
         yq e 'del(.spec.template.spec.containers[0].resources.limits.cpu)' -i patch-prefill.yaml
@@ -67,11 +64,8 @@ jobs:
         yq e '.spec.template.spec.containers[0].args[2] = "--tensor-parallel-size=1"' -i patch-decode.yaml
         yq e '.spec.replicas = 1' -i patch-prefill.yaml
         yq e '.spec.replicas = 1' -i patch-decode.yaml
-        yq e '.spec.template.spec.volumes[1].emptyDir.sizeLimit = "2Gi"' -i patch-prefill.yaml
-        yq e '.spec.template.spec.volumes[1].emptyDir.sizeLimit = "2Gi"' -i patch-decode.yaml
-        echo "Slim transform applied — model: Qwen3-0.6B, 1 GPU decode, 1 prefill replica"
+        echo "Slim transform applied — 1 GPU decode, 1 prefill replica"
         cd "$GITHUB_WORKSPACE"
-      image_override: 'ghcr.io/llm-d/llm-d-cuda-dev:latest'
       allow_gpu_preemption: true
       llm_d_ref: ${{ github.ref }}
       skip_cleanup: ${{ github.event.inputs.skip_cleanup == 'true' }}
