@@ -258,8 +258,154 @@ def parse_sar_log(sar_log):
 
     return pd.DataFrame(parsed_data)
 
+def parse_line(cols):
+    req_id = -1
+    offset = -1
+    bytes = -1
+    is_largest = False
+    ts = ""
+    bond_id = -1
+    for col in cols:
+        k, v = col.split(':', 1)
+        k = k.strip()
+        v = v.strip()
+        if k == 'req_id':
+            req_id = int(v)
+        elif k == "bytes":
+            bytes = int(v)
+        elif k == "offset":
+            offset = int(v)
+        elif k == 'is_largest':
+            is_largest = v == 'true'
+        elif k == 'timestamp':
+            ts = datetime.fromisoformat(v)  # datetime object stores up to us and drops ns precision
+        elif k == 'bond_id':
+            bond_id = int(v)
+        elif k == 'buf_size':
+            pass
+        else:
+            raise ValueError("Unkown " + k)
+    return req_id, offset, bytes, is_largest, ts, bond_id
+
+
+def parse_jnt_network_metrics(prefill_log, decode_log):
+    network_metrics = {}
+    for log_file in [prefill_log, decode_log]:
+        with open(log_file, 'r') as f:
+            for i, line in enumerate(f):
+                if "[metric]" not in line:
+                    continue
+                cols = line.strip().split(',')
+                req_id, offset, bytes, is_largest, ts, bond_id = parse_line(cols[1:])
+                if req_id not in network_metrics:
+                    network_metrics[req_id] = {}
+                req_metrics = network_metrics[req_id]
+
+                if offset not in req_metrics:
+                    req_metrics[offset] = {}
+                chunk_metrics = req_metrics[offset]
+
+                chunk_metrics.setdefault('bytes', bytes)
+                assert chunk_metrics['bytes'] == bytes
+
+                chunk_metrics.setdefault('is_largest', is_largest)
+                assert chunk_metrics['is_largest'] == is_largest
+
+                if bond_id != -1:
+                    chunk_metrics.setdefault('bond_id', bond_id)
+                    assert chunk_metrics['bond_id'] == bond_id
+
+                if 'on_send' in cols[0]:
+                    assert 'ts_on_send' not in chunk_metrics, log_file +  ", line " + str(i)
+                    chunk_metrics['ts_on_send'] = ts
+                elif 'Send on_done' in cols[0]:
+                    assert 'ts_on_send_done' not in chunk_metrics
+                    chunk_metrics['ts_on_send_done'] = ts
+                elif 'on_recv' in cols[0]:
+                    assert 'ts_on_recv' not in chunk_metrics
+                    chunk_metrics['ts_on_recv'] = ts
+
+    def is_valid_chunk_metrics(chunk_metrics):
+        return 'ts_on_send' in chunk_metrics and 'ts_on_send_done' in chunk_metrics and 'ts_on_recv' in chunk_metrics and 'is_largest' in chunk_metrics
+
+    def is_valid_req_metrics(req_metrics):
+        has_is_largest = False
+        for offset, chunk_metrics in req_metrics.items():
+            if not is_valid_chunk_metrics(chunk_metrics):
+                # print('here')
+                return False
+            has_is_largest = has_is_largest or chunk_metrics['is_largest']
+            # print(has_is_largest, chunk_metrics['is_largest'])
+        return has_is_largest
+
+    print(len(network_metrics))
+    ret = {req: req_metrics for req, req_metrics in network_metrics.items() if is_valid_req_metrics(req_metrics)}
+    print(len(ret))
+    return ret
+
+
+def plot_jnt_network_metrics(net_metrics):
+    xvals = []
+    net_lats = []
+    send_lats = []
+    sizes = []
+    req_lats = []
+    req_recv_ts = []
+    for req_id, req_metrics in net_metrics.items():
+        ts_on_send = []
+        ts_on_recv = []
+        for offset, v in req_metrics.items():
+            xvals.append(v['ts_on_recv'])
+            net_lat = (v['ts_on_recv'] - v['ts_on_send']).total_seconds() * 1000
+            net_lats.append(net_lat)
+            send_lat = (v['ts_on_send_done'] - v['ts_on_send']).total_seconds() * 1000
+            send_lats.append(send_lat)
+            sizes.append(v['bytes'] / 1024 / 1024)
+
+            ts_on_send.append(v['ts_on_send'])
+            ts_on_recv.append(v['ts_on_recv'])
+        req_recv_ts.append(max(ts_on_recv))
+        req_lats.append((max(ts_on_recv) - min(ts_on_send)).total_seconds() * 1000)
+
+    sorted_tuples = sorted(zip(xvals, net_lats, send_lats, sizes))
+    xvals, net_lats, send_lats, sizes = zip(*sorted_tuples)
+    xvals, net_lats, send_lats, sizes = list(xvals), list(net_lats), list(send_lats), list(sizes)
+    ts_start = xvals[0]
+    xvals = [(x - ts_start).total_seconds() for x in xvals]
+    fig, axes = plt.subplots(4, 1, figsize=(20, 14), sharex=True)
+    ax = axes[0]
+    ax.plot(xvals, net_lats, '.-', label="Chunk network transfer latency")
+    ax.set_xlim(0, )
+    ax.set_ylabel("Latency (ms)")
+    ax.legend()
+
+    ax = axes[1]
+    ax.plot(xvals, send_lats, '.-', label="Chunk send latency")
+    ax.set_ylabel("Latency (ms)")
+    ax.legend()
+
+    ax = axes[2]
+    ax.plot(xvals, sizes, '.-', label="Chunk size")
+    ax.set_ylabel("Chunk sizes (MiB)")
+    ax.legend()
+
+    ax.set_xlim(0, )
+
+    ax = axes[3]
+    req_recv_ts = [(x - ts_start).total_seconds() for x in req_recv_ts]
+    ax.plot(req_recv_ts, req_lats, '.-')
+    print(len(req_lats), len(xvals))
+    ax.set_ylabel('PjRtBuffer network transfer latency (ms)')
+    ax.set_xlabel("Time (s)")
+
+    plt.savefig("jnt_lats.png", bbox_inches='tight')
+
 
 def main():
+    # prefill_log = '/tmp/transport_test/jnt_test/jnt_client.log'
+    # decode_log = '/tmp/transport_test/jnt_test/jnt_server.log'
+    # network_metrics = parse_jnt_network_metrics(prefill_log, decode_log)
+    # plot_jnt_network_metrics(network_metrics)
     report_dir = './benchmark-report'
     report_file = os.path.join(report_dir, 'summary_lifecycle_metrics.json')
     config_file = os.path.join(report_dir, 'config.yaml')
