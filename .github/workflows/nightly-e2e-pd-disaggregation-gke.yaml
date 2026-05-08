@@ -64,6 +64,10 @@ jobs:
         yq e '.spec.template.spec.containers[0].args[2] = "--tensor-parallel-size=1"' -i patch-decode.yaml
         yq e '.spec.replicas = 1' -i patch-prefill.yaml
         yq e '.spec.replicas = 1' -i patch-decode.yaml
+        yq e '.spec.template.spec.containers[0].args += ["--max-model-len=8192", "--enforce-eager"] | .spec.template.spec.containers[0].args[] style="double"' -i patch-prefill.yaml
+        yq e '.spec.template.spec.containers[0].env += [{"name": "PYTORCH_ALLOC_CONF", "value": "expandable_segments:True"}] | .spec.template.spec.containers[0].env[-1].value style="double"' -i patch-prefill.yaml
+        yq e '.spec.template.spec.containers[0].args += ["--max-model-len=8192", "--enforce-eager"] | .spec.template.spec.containers[0].args[] style="double"' -i patch-decode.yaml
+        yq e '.spec.template.spec.containers[0].env += [{"name": "PYTORCH_ALLOC_CONF", "value": "expandable_segments:True"}] | .spec.template.spec.containers[0].env[-1].value style="double"' -i patch-decode.yaml
         echo "Slim transform applied — 1 GPU decode, 1 prefill replica"
         cd "$GITHUB_WORKSPACE"
       allow_gpu_preemption: true
