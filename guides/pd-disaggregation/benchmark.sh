@@ -72,10 +72,17 @@ fi
 
 # Capture kv transfer log
 DECODE_POD=$(kubectl get pods -n llm-d-pd --no-headers -o custom-columns=":metadata.name" | grep decode)
-# PREFILL_POD=$(kubectl get pods -n llm-d-pd --no-headers -o custom-columns=":metadata.name" | grep prefill)
+PREFILL_POD=$(kubectl get pods -n llm-d-pd --no-headers -o custom-columns=":metadata.name" | grep prefill)
 
-kubectl logs "${DECODE_POD}" -n llm-d-pd --tail=0 -f | grep --line-buffered "kv transfer | done pull" > "${OUTPUT_DIR}/kv_transfer.log" &
-KV_TRANSFER_LOG_PID=$!
+kubectl logs "${DECODE_POD}" -n llm-d-pd --tail=0 -f | \
+    tee \
+      >(grep --line-buffered "kv transfer | done pull" > "${OUTPUT_DIR}/kv_transfer.log") \
+      >(grep --line-buffered "[metric]" > "${OUTPUT_DIR}/decode_jnt_network_metrics.log") \
+    > /dev/null &
+DECODE_POD_LOG_CAPTURE_PID=$!
+
+kubectl logs "${PREFILL_POD}" -n llm-d-pd --tail=0 -f | grep --line-buffered "[metric]" > "${OUTPUT_DIR}/prefill_jnt_network_metrics.log" &
+PREFILL_POD_LOG_CAPTURE_PID=$!
 
 echo "Deploying benchmark job..."
 kubectl apply -f "${BENCHMARK_DIR}/manifests.yaml" -n "${NAMESPACE}"
@@ -83,8 +90,19 @@ kubectl apply -f "${BENCHMARK_DIR}/manifests.yaml" -n "${NAMESPACE}"
 # Launch sar on decode pod to capture rx rate
 kubectl exec "${DECODE_POD}" -n "${NAMESPACE}" -- pkill -f sar || true
 REMOTE_SAR_LOG="${NAMESPACE}/${DECODE_POD}:/tmp/sar.log"
-readonly SAR_CMD="nohup sar -n DEV --iface=eth0,eth1 2 -o /tmp/sar.log > /dev/null 2>&1 &"
+readonly SAR_CMD="nohup sar -n DEV --iface=eth0,eth1 1 -o /tmp/sar.log > /dev/null 2>&1 &"
 SAR_PID=$(kubectl exec "${DECODE_POD}" -n "${NAMESPACE}" -- bash -c "${SAR_CMD} echo \$!")
+
+# Define a cleanup function
+cleanup_logs() {
+  echo "Cleaning up background log capture processes..."
+  kubectl exec "${DECODE_POD}" -n "${NAMESPACE}" -- kill -9 "${SAR_PID}" || true
+  kill "${DECODE_POD_LOG_CAPTURE_PID}" "${PREFILL_POD_LOG_CAPTURE_PID}" 2>/dev/null || true
+}
+
+# Set a trap to catch the EXIT signal
+# EXIT triggers on successful completion, 'set -e' aborts, and manual 'exit' commands
+trap cleanup_logs EXIT
 
 # ==============================================================================
 # Step 4: Wait for Execution
@@ -115,9 +133,8 @@ echo ""
 
 echo -e "Benchmark status: ${GREEN}FINISHED${NC}"
 
-kubectl exec "${DECODE_POD}" -n "${NAMESPACE}" -- kill -9 "${SAR_PID}" || true
-# Stop capturing kv transfer logs
-kill ${KV_TRANSFER_LOG_PID}
+# Stop capturing logs
+cleanup_logs
 
 # ==============================================================================
 # Step 5: Retrieve Results
