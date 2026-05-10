@@ -1,8 +1,17 @@
 load:
   type: constant
+  interval: 1.0
   stages:
   - rate: 1
-    duration: 30
+    duration: 60                  # Seconds to maintain this rate (CONSTANT or POISSON LOADS)
+  - rate: 2
+    duration: 60
+  - rate: 4
+    duration: 60
+  - rate: 8
+    duration: 60
+  - rate: 16
+    duration: 60
   base_seed: 12345    # Fixed seed for reproducible runs
 api:
   type: completion
@@ -15,19 +24,18 @@ server:
 tokenizer:
   pretrained_model_name_or_path: meta-llama/Llama-3.3-70B-Instruct
 data:
-  # type: shareGPT # blocked by https://github.com/kubernetes-sigs/inference-perf/issues/429
   type: random
-  input_distribution:
-    min: 2048             # min length of the synthetic prompts
-    max: 2048            # max length of the synthetic prompts
-    mean: 2048            # mean length of the synthetic prompts
-    std_dev: 0         # standard deviation of the length of the synthetic prompts
-    total_count: 100    # total number of prompts to generate to fit the above mentioned distribution constraints
-  output_distribution:
-    min: 10             # min length of the output to be generated
-    max: 10            # max length of the output to be generated
-    mean: 10            # mean length of the output to be generated
-    std_dev: 0         # standard deviation of the length of the output to be generated
+  input_distribution:  # distribution of number of input tokens
+    min: 1024
+    max: 1024
+    mean: 1024
+    std_dev: 0
+    total_count: 100      # total number of prompts to generate to fit the above mentioned distribution constraints
+  output_distribution:  # distribution of number of input tokens
+    min: 1024
+    max: 1024
+    mean: 1024
+    std_dev: 0
     total_count: 100    # total number of output lengths to generate to fit the above mentioned distribution constraints
 report:
   request_lifecycle:
