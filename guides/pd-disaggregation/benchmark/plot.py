@@ -409,19 +409,21 @@ def plot_jnt_network_metrics(net_metrics, output_dir='.'):
 
 
 def main():
-    # prefill_log = '/tmp/transport_test/jnt_test/jnt_client.log'
-    # decode_log = '/tmp/transport_test/jnt_test/jnt_server.log'
-    # network_metrics = parse_jnt_network_metrics(prefill_log, decode_log)
-    # plot_jnt_network_metrics(network_metrics)
     report_dir = './benchmark-report'
     report_file = os.path.join(report_dir, 'summary_lifecycle_metrics.json')
     config_file = os.path.join(report_dir, 'config.yaml')
     kv_transfer_log = os.path.join(report_dir, 'kv_transfer.log')
     sar_log = os.path.join(report_dir, 'sar.csv')
-    plot_stress_nic(report_dir)
+
     plot_inference_perf_report(config_file, report_file, report_dir)
     plot_kv_transfer(kv_transfer_log, sar_log, report_dir)
 
+    prefill_jnt_metrics_log = os.path.join(report_dir, 'prefill_jnt_metrics.log')
+    decode_jnt_metrics_log = os.path.join(report_dir, 'decode_jnt_metrics.log')
+    network_metrics = parse_jnt_network_metrics(prefill_log, decode_log)
+    plot_jnt_network_metrics(network_metrics, report_dir)
+
+    plot_stress_nic(report_dir)
 
 if __name__ == '__main__':
     main()

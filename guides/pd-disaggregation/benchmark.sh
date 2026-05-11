@@ -87,11 +87,11 @@ PREFILL_POD=$(kubectl get pods -n llm-d-pd --no-headers -o custom-columns=":meta
 kubectl logs "${DECODE_POD}" -n llm-d-pd --tail=0 -f | \
     tee \
       >(grep --line-buffered "kv transfer | done pull" > "${OUTPUT_DIR}/kv_transfer.log") \
-      >(grep --line-buffered "[metric]" > "${OUTPUT_DIR}/decode_jnt_network_metrics.log") \
+      >(grep --line-buffered "\[metric\]" > "${OUTPUT_DIR}/decode_jnt_metrics.log") \
     > /dev/null &
 DECODE_POD_LOG_CAPTURE_PID=$!
 
-kubectl logs "${PREFILL_POD}" -n llm-d-pd --tail=0 -f | grep --line-buffered "[metric]" > "${OUTPUT_DIR}/prefill_jnt_network_metrics.log" &
+kubectl logs "${PREFILL_POD}" -n llm-d-pd --tail=0 -f | grep --line-buffered "\[metric\]" > "${OUTPUT_DIR}/prefill_jnt_metrics.log" &
 PREFILL_POD_LOG_CAPTURE_PID=$!
 
 echo "Deploying benchmark job..."
