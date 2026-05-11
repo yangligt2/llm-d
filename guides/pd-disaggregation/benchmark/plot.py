@@ -11,7 +11,9 @@ import pytz
 import yaml
 
 nic_line_rate_Gbps = 200
-STATS = ['min', 'p0.1', 'p1', 'p5', 'p10', 'p25', 'mean', 'median', 'p75', 'p90', 'p95', 'p99', 'p99.9', 'max']
+
+# Intentionally drop 'p0.1', 'p1'
+STATS = ['min', 'p5', 'p10', 'p25', 'mean', 'median', 'p75', 'p90', 'p95', 'p99', 'p99.9', 'max']
 
 def bar_plot(ax, xvals, yvals, xtick_labels, ylabel):
     ax.bar(xvals, yvals)
@@ -78,7 +80,8 @@ def plot_inference_perf_report(config_file, report_file, output_dir):
     bar_plot(axes[2, 1], xticks, prompt_len, xtick_labels, "Prompt length (tokens)")
     bar_plot(axes[3, 1], xticks, output_len, xtick_labels, "Output length (tokens)")
 
-    plt.savefig(os.path.join(output_dir, 'benchmark_results.png'), bbox_inches='tight')
+    if output_dir:
+        plt.savefig(os.path.join(output_dir, 'benchmark_results.png'), bbox_inches='tight')
 
 
 def plot_kv_transfer(kv_transfer_log, sar_log="", output_dir='.'):
@@ -135,7 +138,8 @@ def plot_kv_transfer(kv_transfer_log, sar_log="", output_dir='.'):
     ax.set_xlabel("KV transfer size (MiB)")
     ax.set_ylim(0, 1)
     ax.set_ylabel("CDF")
-    plt.savefig(os.path.join(output_dir, 'kv_transfer_dist.png'), bbox_inches='tight')
+    if output_dir:
+        plt.savefig(os.path.join(output_dir, 'kv_transfer_dist.png'), bbox_inches='tight')
 
     fig, ax = plt.subplots(1, 1, figsize=(6, 5))
     ax.scatter(size, prepare_time, label='Prepare time')
@@ -144,7 +148,8 @@ def plot_kv_transfer(kv_transfer_log, sar_log="", output_dir='.'):
     ax.set_ylabel("Time (ms)")
     ax.set_ylim(0, )
     ax.legend()
-    plt.savefig(os.path.join(output_dir, 'kv_transfer_time_vs_size.png'), bbox_inches='tight')
+    if output_dir:
+        plt.savefig(os.path.join(output_dir, 'kv_transfer_time_vs_size.png'), bbox_inches='tight')
 
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
@@ -173,7 +178,8 @@ def plot_kv_transfer(kv_transfer_log, sar_log="", output_dir='.'):
     ax.set_ylabel('NIC Util')
     ax.set_ylim(0, 1)
 
-    plt.savefig(os.path.join(output_dir, 'kv_transfer_time_series.png'), bbox_inches='tight')
+    if output_dir:
+        plt.savefig(os.path.join(output_dir, 'kv_transfer_time_series.png'), bbox_inches='tight')
 
 def plot_stress_nic(output_dir):
     stats = ['min', 'p1', 'p10', 'mean', 'p50', 'max']
@@ -344,7 +350,7 @@ def parse_jnt_network_metrics(prefill_log, decode_log):
     return ret
 
 
-def plot_jnt_network_metrics(net_metrics):
+def plot_jnt_network_metrics(net_metrics, output_dir='.'):
     xvals = []
     net_lats = []
     send_lats = []
@@ -398,7 +404,8 @@ def plot_jnt_network_metrics(net_metrics):
     ax.set_ylabel('PjRtBuffer network transfer latency (ms)')
     ax.set_xlabel("Time (s)")
 
-    plt.savefig("jnt_lats.png", bbox_inches='tight')
+    if output_dir:
+        plt.savefig(os.path.join(output_dir, "jnt_lats.png"), bbox_inches='tight')
 
 
 def main():
