@@ -1,7 +1,7 @@
 export PROJECT_ID=<YOUR_PROJECT_ID>
 export CLUSTER=<YOUR_CLUSTER_NAME>
-export LOCATION=<YOUR_GCP_REGION>
-export ZONE=<YOUR_GCP_ZONE>
+export LOCATION=us-central1
+export ZONE=us-central1-c
 export RESERVATION=<YOUR_RESERVATION>
 export NETWORK_NAME_1=<YOUR_NETWORK> # Set to "default" to use the default network
 export NETWORK_NAME_2=<YOUR_NETWORK> # Set to "default" to use the default network
@@ -16,3 +16,5 @@ export BENCHMARK_NODE_POOL=benchmark
 export MACHINE_TYPE=tpu7x-standard-4t
 export NAMESPACE=llm-d-pd
 export HF_TOKEN=<YOUR_HF_TOKEN>
+export ARTIFACT_REGISTRY_REPO="llm-d-pd-jax-tpu-benchmark"   # Google Artifact Registry repository name
+export PD_POD_IMAGE="${LOCATION}-docker.pkg.dev/${PROJECT_ID}/${ARTIFACT_REGISTRY_REPO}/vllm-tpu-custom-jaxlib:v0.18.0"

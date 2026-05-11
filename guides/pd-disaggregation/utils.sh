@@ -131,3 +131,27 @@ check_fw_rule_exists() {
     return 1
   fi
 }
+
+# Checks if an artifacts repository exists.
+# Prints a message if the artifacts repository is found.
+# Globals: None
+# Arguments:
+#   1: fw_rule (string) - The name of the firewall rule.
+#   2: location (string)  - The region/location of the cluster.
+#   3: project (string)  - The Google Cloud project ID.
+# Outputs: Echoes "Artifact repository ... already exists." to stdout if found.
+# Returns:
+#   0 if the artifact repository exists.
+#   1 if the artifact repository does not exist.
+check_artifacts_repository_exists() {
+  local repo="$1"
+  local location="$2"
+  local project="$3"
+  if gcloud artifacts repositories describe "${repo}" \
+    --location="${location}" --project="${project}" > /dev/null 2>&1; then
+    echo "Artifacts repository ${repo} for project ${project} already exists at location ${location}."
+    return 0
+  else
+    return 1
+  fi
+}

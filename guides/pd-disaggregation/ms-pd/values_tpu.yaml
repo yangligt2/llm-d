@@ -42,8 +42,8 @@ decode:
       interval: "30s"
   containers:
   - name: "vllm"
-    # image: vllm/vllm-tpu:nightly-20260327-c8e790a-d860601 # https://hub.docker.com/r/vllm/vllm-tpu/tags
     image: vllm/vllm-tpu:v0.18.0 # https://hub.docker.com/layers/vllm/vllm-tpu/v0.18.0
+    imagePullPolicy: Always
     modelCommand: custom
     command:
       - /bin/bash
@@ -146,8 +146,8 @@ prefill:
       interval: "30s"
   containers:
   - name: "vllm"
-    # image: vllm/vllm-tpu:nightly-20260327-c8e790a-d860601 # https://hub.docker.com/r/vllm/vllm-tpu/tags
     image: vllm/vllm-tpu:v0.18.0 # https://hub.docker.com/layers/vllm/vllm-tpu/v0.18.0
+    imagePullPolicy: Always
     modelCommand: custom
     command:
       - /bin/bash
