@@ -20,6 +20,14 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+
+ISL_OSL="${1:-1k1k}"  # Input Sequence Length / Output Sequence Length. Defines the number of input and output tokens for the benchmark (e.g., 1K/8K means 1,024 input tokens and 8,192 output tokens).
+
+if [[ "${ISL_OSL}" != "1k1k" && "${ISL_OSL}" != "8k1k" ]]; then
+  echo -e "${RED}${ISL_OSL} is invalid. Benchmark config should be either 1k1k or 8k1k.${NC}"
+  exit
+fi
+
 echo -e "Starting benchmark in namespace: ${GREEN}${NAMESPACE}${NC}"
 
 # Check for required files
@@ -44,9 +52,11 @@ else
   BASE_URL="http://${RAW_IP}:80"
   echo "Target URL: ${BASE_URL}"
 
+  readonly local config_template="${BENCHMARK_DIR}/config_${ISL_OSL}.yaml"
+  readonly local config_file="${OUTPUT_DIR}/config.yaml"
   # Update the config.yaml with the dynamic Gateway IP
-  sed "s|base_url: .*|base_url: ${BASE_URL}|" "${BENCHMARK_DIR}/config.yaml" > "${OUTPUT_DIR}/config.yaml"
-  echo "Copied ${BENCHMARK_DIR}/config.yaml to ${OUTPUT_DIR}/config.yaml and updated base_url to ${BASE_URL}"
+  sed "s|base_url: .*|base_url: ${BASE_URL}|" "${config_template}" > "${config_file}"
+  echo "Copied ${config_template} to ${config_file} and updated base_url to ${BASE_URL}"
 fi
 
 # ==============================================================================
