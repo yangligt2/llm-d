@@ -420,7 +420,7 @@ def main():
 
     prefill_jnt_metrics_log = os.path.join(report_dir, 'prefill_jnt_metrics.log')
     decode_jnt_metrics_log = os.path.join(report_dir, 'decode_jnt_metrics.log')
-    network_metrics = parse_jnt_network_metrics(prefill_log, decode_log)
+    network_metrics = parse_jnt_network_metrics(prefill_jnt_metrics_log, decode_jnt_metrics_log)
     plot_jnt_network_metrics(network_metrics, report_dir)
 
     plot_stress_nic(report_dir)
