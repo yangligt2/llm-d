@@ -1,0 +1,22 @@
+# network-crs.yaml
+# Custom resources of Kubectl Network object
+apiVersion: networking.gke.io/v1
+kind: Network
+metadata:
+  name: net2 # Kubernetes-internal name for the network
+spec:
+  parametersRef:
+    group: networking.gke.io
+    kind: GKENetworkParamSet
+    name: net2-params
+  provider: GKE
+  type: Device
+---
+apiVersion: networking.gke.io/v1
+kind: GKENetworkParamSet
+metadata:
+  name: net2-params
+spec:
+  vpc: NETWORK_NAME_2      # Name placeholder, replace with the right name
+  vpcSubnet: SUBNET_NAME_2  # Name placeholder, replace with the right name
+  deviceMode: NetDevice  # one of Layer3, NetDevice, and DPDK

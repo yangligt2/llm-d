@@ -22,7 +22,15 @@ decode:
     tensor: 4
   create: true
   replicas: 1
+  podAnnotations:
+    networking.gke.io/default-interface: "eth0"
+    networking.gke.io/interfaces: |
+      [
+        {"interfaceName":"eth0","network":"default"},
+        {"interfaceName":"eth1","network":"net2"}
+      ]
   extraConfig:
+    shareProcessNamespace: true  # This enables the Pod-level init reaper
     nodeSelector:
       cloud.google.com/gke-tpu-topology: "2x2x1"
       cloud.google.com/gke-tpu-accelerator: "tpu7x"
@@ -34,21 +42,26 @@ decode:
       interval: "30s"
   containers:
   - name: "vllm"
-    # image: vllm/vllm-tpu:nightly-ironwood-20251222-6b879bf-c02a270 # work but no kv transfer metric report
-    image: vllm/vllm-tpu:nightly-20260327-c8e790a-d860601 # https://hub.docker.com/r/vllm/vllm-tpu/tags
-    modelCommand: vllmServe
+    # image: vllm/vllm-tpu:v0.18.0 # https://hub.docker.com/layers/vllm/vllm-tpu/v0.18.0
+    image: us-central1-docker.pkg.dev/tpu-prod-env-automated/llm-d-pd-jax-tpu-benchmark/vllm-tpu-custom-jaxlib:v0.18.0
+    imagePullPolicy: Always
+    modelCommand: custom
+    command:
+      - /bin/bash
+      - -c
     args:
-      # Keep tensor-parallelism as the first set of arguments
-      - "--tensor-parallel-size"
-      - "8"
-      - "--kv-transfer-config"
-      - '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_consumer", "kv_ip" : "$(POD_IP)"}'
-      - "--kv-cache-dtype=fp8"
-      - "--no-enable-prefix-caching"
-      - "--no-async-scheduling"
-      - "--disable-uvicorn-access-log"
-      - "--max-model-len"
-      - "32000"
+      - |
+        apt update && apt install -y vim sysstat ethtool iproute2 net-tools
+        exec /usr/local/bin/python3.12 /usr/local/bin/vllm serve meta-llama/Llama-3.3-70B-Instruct \
+          --port 8200 \
+          --served-model-name meta-llama/Llama-3.3-70B-Instruct \
+          --tensor-parallel-size 8 \
+          --kv-transfer-config '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_consumer", "kv_ip" : "$(POD_IP)"}' \
+          --kv-cache-dtype=fp8 \
+          --no-enable-prefix-caching \
+          --no-async-scheduling \
+          --disable-uvicorn-access-log \
+          --max-model-len 32000
     env:
       - name: POD_IP
         valueFrom:
@@ -56,6 +69,8 @@ decode:
             fieldPath: status.podIP
       - name: VLLM_LOGGING_LEVEL
         value: DEBUG
+      - name: TF_CPP_MIN_LOG_LEVEL
+        value: "0"
     ports:
       - containerPort: 8200
         name: metrics
@@ -114,7 +129,15 @@ prefill:
     tensor: 4
   create: true
   replicas: 1
+  podAnnotations:
+    networking.gke.io/default-interface: "eth0"
+    networking.gke.io/interfaces: |
+      [
+        {"interfaceName":"eth0","network":"default"},
+        {"interfaceName":"eth1","network":"net2"}
+      ]
   extraConfig:
+    shareProcessNamespace: true  # This enables the Pod-level init reaper
     nodeSelector:
       cloud.google.com/gke-tpu-topology: "2x2x1"
       cloud.google.com/gke-tpu-accelerator: "tpu7x"
@@ -126,20 +149,26 @@ prefill:
       interval: "30s"
   containers:
   - name: "vllm"
-    # image: vllm/vllm-tpu:nightly-ironwood-20251222-6b879bf-c02a270 # work but no kv transfer metric report
-    image: vllm/vllm-tpu:nightly-20260327-c8e790a-d860601 # https://hub.docker.com/r/vllm/vllm-tpu/tags
-    modelCommand: vllmServe
+    # image: vllm/vllm-tpu:v0.18.0 # https://hub.docker.com/layers/vllm/vllm-tpu/v0.18.0
+    image: us-central1-docker.pkg.dev/tpu-prod-env-automated/llm-d-pd-jax-tpu-benchmark/vllm-tpu-custom-jaxlib:v0.18.0
+    imagePullPolicy: Always
+    modelCommand: custom
+    command:
+      - /bin/bash
+      - -c
     args:
-      - "--tensor-parallel-size"
-      - "8"
-      - "--kv-transfer-config"
-      - '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_producer", "kv_ip" : "$(POD_IP)"}'
-      - "--kv-cache-dtype=fp8"
-      - "--no-enable-prefix-caching"
-      - "--no-async-scheduling"
-      - "--disable-uvicorn-access-log"
-      - "--max-model-len"
-      - "32000"
+      - |
+        apt update && apt install -y vim sysstat ethtool iproute2 net-tools
+        exec /usr/local/bin/python3.12 /usr/local/bin/vllm serve meta-llama/Llama-3.3-70B-Instruct \
+          --port 8443 \
+         --served-model-name meta-llama/Llama-3.3-70B-Instruct \
+         --tensor-parallel-size 8 \
+         --kv-transfer-config '{"kv_connector":"TPUConnector", "kv_connector_module_path" : "tpu_inference.distributed.tpu_connector", "kv_role":"kv_producer", "kv_ip" : "$(POD_IP)"}' \
+         --kv-cache-dtype=fp8 \
+         --no-enable-prefix-caching \
+         --no-async-scheduling \
+         --disable-uvicorn-access-log \
+         --max-model-len 32000
     env:
       - name: POD_IP
         valueFrom:
@@ -147,6 +176,8 @@ prefill:
             fieldPath: status.podIP
       - name: VLLM_LOGGING_LEVEL
         value: DEBUG
+      - name: TF_CPP_MIN_LOG_LEVEL
+        value: "0"
     ports:
       - containerPort: 8443
         name: metrics

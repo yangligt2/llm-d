@@ -3,14 +3,13 @@
 # ==============================================================================
 # Configuration & Setup
 # ==============================================================================
-source v7x-aio-0-env.sh
+source env.sh
 
 # Config kubectl so kubectl context points to correct cluster and locaiton.
-gcloud container clusters get-credentials $CLUSTER --location=$LOCATION
+gcloud container clusters get-credentials "${CLUSTER}" --location="${LOCATION}"
 
 NAMESPACE="${NAMESPACE:-llm-d-pd}"
 # Colors for output
-YELLOW='\033[0;33m'
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
@@ -86,9 +85,9 @@ echo -e "\n--- Checking GKE Gateway ---"
 
 GATEWAY_NAME="infra-pd-inference-gateway"
 GATEWAY_IP=""
-kubectl get gateway "$GATEWAY_NAME" -n "${NAMESPACE}"
+kubectl get gateway "${GATEWAY_NAME}" -n "${NAMESPACE}"
 # Wait/Check for Gateway IP
-RAW_IP=$(kubectl get gateway "$GATEWAY_NAME" -n "${NAMESPACE}" -o jsonpath='{.status.addresses[0].value}' 2>/dev/null)
+RAW_IP=$(kubectl get gateway "${GATEWAY_NAME}" -n "${NAMESPACE}" -o jsonpath='{.status.addresses[0].value}' 2>/dev/null)
 
 if [ -z "$RAW_IP" ]; then
     echo -e "${RED}Gateway IP not assigned yet. It may take a few minutes.${NC}"
