@@ -1,0 +1,216 @@
+multinode: false
+
+# Configure accelerator type for Google TPU
+accelerator:
+  type: google
+
+modelArtifacts:
+  uri: "hf://meta-llama/Llama-3.3-70B-Instruct"
+  size: 200Gi
+  authSecretName: "llm-d-hf-token"
+  name: "meta-llama/Llama-3.3-70B-Instruct"
+
+routing:
+  servicePort: 8443
+  proxy:
+    image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.4.0-rc.1
+    connector: nixlv2
+    secure: false
+
+decode:
+  parallelism:
+    tensor: 4
+  create: true
+  replicas: 1
+  podAnnotations:
+    networking.gke.io/default-interface: "eth0"
+    networking.gke.io/interfaces: |
+      [
+        {"interfaceName":"eth0","network":"default"},
+        {"interfaceName":"eth1","network":"net2"}
+      ]
+  extraConfig:
+    shareProcessNamespace: true  # This enables the Pod-level init reaper
+    nodeSelector:
+      cloud.google.com/gke-tpu-topology: "2x2x1"
+      cloud.google.com/gke-tpu-accelerator: "tpu7x"
+  monitoring:
+    podmonitor:
+      enabled: true
+      portName: "metrics" # decode vLLM service port (from routing.proxy.targetPort)
+      path: "/metrics"
+      interval: "30s"
+  containers:
+  - name: "vllm"
+    # image: vllm/vllm-tpu:v0.18.0 # https://hub.docker.com/layers/vllm/vllm-tpu/v0.18.0
+    image: us-central1-docker.pkg.dev/tpu-prod-env-automated/llm-d-pd-jax-tpu-benchmark/vllm-tpu-custom-jaxlib:v0.18.0
+    imagePullPolicy: Always
+    modelCommand: custom
+    command:
+      - /bin/bash
+      - -c
+    args:
+      - |
+        echo "Container is up and running in idle mode for debugging."
+        apt update && apt install -y vim sysstat ethtool iproute2 net-tools
+        sleep infinity
+    env:
+      - name: POD_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      - name: VLLM_LOGGING_LEVEL
+        value: DEBUG
+      - name: TF_CPP_MIN_LOG_LEVEL
+        value: "0"
+    ports:
+      - containerPort: 8200
+        name: metrics
+        protocol: TCP
+    resources:
+      limits:
+        memory: 512Gi
+        cpu: "64"
+        google.com/tpu: 4
+      requests:
+        memory: 512Gi
+        cpu: "64"
+        google.com/tpu: 4
+    mountModelVolume: true
+    volumeMounts:
+    - name: metrics-volume
+      mountPath: /.config
+    - name: shm
+      mountPath: /dev/shm
+    - name: torch-compile-cache
+      mountPath: /.cache
+    # startupProbe:
+    #   httpGet:
+    #     path: /health
+    #     port: 8200
+    #   initialDelaySeconds: 15
+    #   periodSeconds: 30
+    #   timeoutSeconds: 5
+    #   failureThreshold: 120
+    # livenessProbe:
+    #   httpGet:
+    #     path: /health
+    #     port: 8200
+    #   periodSeconds: 10
+    #   timeoutSeconds: 5
+    #   failureThreshold: 3
+    # readinessProbe:
+    #   httpGet:
+    #     path: /v1/models
+    #     port: 8200
+    #   periodSeconds: 5
+    #   timeoutSeconds: 2
+    #   failureThreshold: 3
+  volumes:
+  - name: metrics-volume
+    emptyDir: {}
+  - name: shm
+    emptyDir:
+      medium: Memory
+      sizeLimit: "16Gi"
+  - name: torch-compile-cache
+    emptyDir: {}
+
+prefill:
+  parallelism:
+    tensor: 4
+  create: true
+  replicas: 1
+  podAnnotations:
+    networking.gke.io/default-interface: "eth0"
+    networking.gke.io/interfaces: |
+      [
+        {"interfaceName":"eth0","network":"default"},
+        {"interfaceName":"eth1","network":"net2"}
+      ]
+  extraConfig:
+    shareProcessNamespace: true  # This enables the Pod-level init reaper
+    nodeSelector:
+      cloud.google.com/gke-tpu-topology: "2x2x1"
+      cloud.google.com/gke-tpu-accelerator: "tpu7x"
+  monitoring:
+    podmonitor:
+      enabled: true
+      portName: "metrics" # prefill vLLM service port (from routing.servicePort)
+      path: "/metrics"
+      interval: "30s"
+  containers:
+  - name: "vllm"
+    # image: vllm/vllm-tpu:v0.18.0 # https://hub.docker.com/layers/vllm/vllm-tpu/v0.18.0
+    image: us-central1-docker.pkg.dev/tpu-prod-env-automated/llm-d-pd-jax-tpu-benchmark/vllm-tpu-custom-jaxlib:v0.18.0
+    imagePullPolicy: Always
+    modelCommand: custom
+    command:
+      - /bin/bash
+      - -c
+    args:
+      - |
+        echo "Container is up and running in idle mode for debugging."
+        apt update && apt install -y vim sysstat ethtool iproute2 net-tools
+        sleep infinity
+    env:
+      - name: POD_IP
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      - name: VLLM_LOGGING_LEVEL
+        value: DEBUG
+      - name: TF_CPP_MIN_LOG_LEVEL
+        value: "0"
+    ports:
+      - containerPort: 8443
+        name: metrics
+        protocol: TCP
+    resources:
+      limits:
+        memory: 512Gi
+        cpu: "64"
+        google.com/tpu: 4
+      requests:
+        memory: 512Gi
+        cpu: "64"
+        google.com/tpu: 4
+    mountModelVolume: true
+    volumeMounts:
+    - name: metrics-volume
+      mountPath: /.config
+    - name: shm
+      mountPath: /dev/shm
+    - name: torch-compile-cache
+      mountPath: /.cache
+    # startupProbe:
+    #   httpGet:
+    #     path: /health
+    #     port: 8443
+    #   initialDelaySeconds: 15
+    #   periodSeconds: 30
+    #   timeoutSeconds: 5
+    #   failureThreshold: 120
+    # livenessProbe:
+    #   httpGet:
+    #     path: /health
+    #     port: 8443
+    #   periodSeconds: 10
+    #   timeoutSeconds: 5
+    #   failureThreshold: 3
+    # readinessProbe:
+    #   httpGet:
+    #     path: /v1/models
+    #     port: 8443
+    #   periodSeconds: 5
+    #   timeoutSeconds: 2
+    #   failureThreshold: 3
+  volumes:
+  - name: metrics-volume
+    emptyDir: {}
+  - name: shm
+    emptyDir:
+      medium: Memory
+      sizeLimit: "16Gi"
+  - name: torch-compile-cache
+    emptyDir: {}
