@@ -63,6 +63,8 @@ decode:
         value: DEBUG
       - name: TF_CPP_MIN_LOG_LEVEL
         value: "0"
+      - name: VLLM_XLA_CACHE_PATH
+        value: "/.cache/xla_cache" # Pointing to the local emptyDir mount
     ports:
       - containerPort: 8200
         name: metrics
@@ -162,6 +164,8 @@ prefill:
         value: DEBUG
       - name: TF_CPP_MIN_LOG_LEVEL
         value: "0"
+      - name: VLLM_XLA_CACHE_PATH
+        value: "/.cache/xla_cache" # Pointing to the local emptyDir mount
     ports:
       - containerPort: 8443
         name: metrics
