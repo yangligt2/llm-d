@@ -64,7 +64,9 @@ decode:
       - name: TF_CPP_MIN_LOG_LEVEL
         value: "0"
       - name: VLLM_XLA_CACHE_PATH
-        value: "/.cache/xla_cache" # Pointing to the local emptyDir mount
+        value: "/.cache/xla_cache"
+      - name: HF_HOME
+        value: "/model-cache"
     ports:
       - containerPort: 8200
         name: metrics
@@ -78,7 +80,7 @@ decode:
         memory: 512Gi
         cpu: "64"
         google.com/tpu: 4
-    mountModelVolume: true
+    mountModelVolume: false
     volumeMounts:
     - name: metrics-volume
       mountPath: /.config
@@ -86,6 +88,10 @@ decode:
       mountPath: /dev/shm
     - name: torch-compile-cache
       mountPath: /.cache
+    - name: vllm-xla-cache
+      mountPath: /.cache/xla_cache
+    - name: persistent-model-storage
+      mountPath: /model-cache
     # startupProbe:
     #   httpGet:
     #     path: /health
@@ -117,6 +123,14 @@ decode:
       sizeLimit: "16Gi"
   - name: torch-compile-cache
     emptyDir: {}
+  - name: vllm-xla-cache
+    hostPath:
+      path: /var/lib/vllm/xla_cache
+      type: DirectoryOrCreate
+  - name: persistent-model-storage
+    hostPath:
+      path: /var/lib/vllm/model_cache
+      type: DirectoryOrCreate
 
 prefill:
   parallelism:
@@ -165,7 +179,9 @@ prefill:
       - name: TF_CPP_MIN_LOG_LEVEL
         value: "0"
       - name: VLLM_XLA_CACHE_PATH
-        value: "/.cache/xla_cache" # Pointing to the local emptyDir mount
+        value: "/.cache/xla_cache"
+      - name: HF_HOME
+        value: "/model-cache"
     ports:
       - containerPort: 8443
         name: metrics
@@ -179,7 +195,7 @@ prefill:
         memory: 512Gi
         cpu: "64"
         google.com/tpu: 4
-    mountModelVolume: true
+    mountModelVolume: false
     volumeMounts:
     - name: metrics-volume
       mountPath: /.config
@@ -187,6 +203,10 @@ prefill:
       mountPath: /dev/shm
     - name: torch-compile-cache
       mountPath: /.cache
+    - name: vllm-xla-cache
+      mountPath: /.cache/xla_cache
+    - name: persistent-model-storage
+      mountPath: /model-cache
     # startupProbe:
     #   httpGet:
     #     path: /health
@@ -218,3 +238,11 @@ prefill:
       sizeLimit: "16Gi"
   - name: torch-compile-cache
     emptyDir: {}
+  - name: vllm-xla-cache
+    hostPath:
+      path: /var/lib/vllm/xla_cache
+      type: DirectoryOrCreate
+  - name: persistent-model-storage
+    hostPath:
+      path: /var/lib/vllm/model_cache
+      type: DirectoryOrCreate
