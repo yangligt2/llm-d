@@ -27,7 +27,7 @@ decode:
     networking.gke.io/interfaces: |
       [
         {"interfaceName":"eth0","network":"default"},
-        {"interfaceName":"eth1","network":"net2"}
+        {"interfaceName":"dcn1","network":"net2"}
       ]
   extraConfig:
     shareProcessNamespace: true  # This enables the Pod-level init reaper
@@ -150,7 +150,7 @@ prefill:
     networking.gke.io/interfaces: |
       [
         {"interfaceName":"eth0","network":"default"},
-        {"interfaceName":"eth1","network":"net2"}
+        {"interfaceName":"dcn1","network":"net2"}
       ]
   extraConfig:
     shareProcessNamespace: true  # This enables the Pod-level init reaper
