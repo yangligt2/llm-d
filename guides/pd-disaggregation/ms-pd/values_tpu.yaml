@@ -42,8 +42,8 @@ decode:
       interval: "30s"
   containers:
   - name: "vllm"
-    # image: vllm/vllm-tpu:v0.18.0 # https://hub.docker.com/layers/vllm/vllm-tpu/v0.18.0
-    image: us-central1-docker.pkg.dev/tpu-prod-env-automated/llm-d-pd-jax-tpu-benchmark/vllm-tpu-custom-jaxlib:v0.18.0
+    image: vllm/vllm-tpu:v0.18.0 # https://hub.docker.com/layers/vllm/vllm-tpu/v0.18.0
+    # image: us-central1-docker.pkg.dev/tpu-prod-env-automated/llm-d-pd-jax-tpu-benchmark/vllm-tpu-custom-jaxlib:v0.18.0
     imagePullPolicy: Always
     modelCommand: custom
     command:
@@ -165,8 +165,8 @@ prefill:
       interval: "30s"
   containers:
   - name: "vllm"
-    # image: vllm/vllm-tpu:v0.18.0 # https://hub.docker.com/layers/vllm/vllm-tpu/v0.18.0
-    image: us-central1-docker.pkg.dev/tpu-prod-env-automated/llm-d-pd-jax-tpu-benchmark/vllm-tpu-custom-jaxlib:v0.18.0
+    image: vllm/vllm-tpu:v0.18.0 # https://hub.docker.com/layers/vllm/vllm-tpu/v0.18.0
+    # image: us-central1-docker.pkg.dev/tpu-prod-env-automated/llm-d-pd-jax-tpu-benchmark/vllm-tpu-custom-jaxlib:v0.18.0
     imagePullPolicy: Always
     modelCommand: custom
     command:
