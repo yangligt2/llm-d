@@ -126,7 +126,7 @@ if ! check_fw_rule_exists "${FW_RULE_NAME_1}" "${PROJECT_ID}"; then
     --project="${PROJECT_ID}" \
     --target-tags="${TARGET_TAG}" \
     --network="${NETWORK_NAME_1}" \
-    --allow=all \
+    --allow=tcp,udp,icmp \
     --source-ranges=35.191.0.0/16,130.211.0.0/22 # Google health check ip range
 fi
 
