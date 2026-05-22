@@ -183,6 +183,6 @@ else
   exit 1
 fi
 
-sar -n DEV -f "${OUTPUT_DIR}/sar.log" --iface=eth0,eth1 > "${OUTPUT_DIR}/sar.csv"
+sar -n DEV -f "${OUTPUT_DIR}/sar.log" --iface=eth0,dcn1 > "${OUTPUT_DIR}/sar.csv"
 
 echo -e "\n${GREEN}Benchmark completed successfully!${NC}"
