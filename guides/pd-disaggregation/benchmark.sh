@@ -100,7 +100,7 @@ kubectl apply -f "${BENCHMARK_DIR}/manifests.yaml" -n "${NAMESPACE}"
 # Launch sar on decode pod to capture rx rate
 kubectl exec "${DECODE_POD}" -n "${NAMESPACE}" -- pkill -f sar || true
 REMOTE_SAR_LOG="${NAMESPACE}/${DECODE_POD}:/tmp/sar.log"
-readonly SAR_CMD="nohup sar -n DEV --iface=eth0,eth1 1 -o /tmp/sar.log > /dev/null 2>&1 &"
+readonly SAR_CMD="nohup sar -n DEV --iface=eth0,dcn1 1 -o /tmp/sar.log > /dev/null 2>&1 &"
 SAR_PID=$(kubectl exec "${DECODE_POD}" -n "${NAMESPACE}" -- bash -c "${SAR_CMD} echo \$!")
 
 # Define a cleanup function
@@ -183,6 +183,6 @@ else
   exit 1
 fi
 
-sar -n DEV -f "${OUTPUT_DIR}/sar.log" --iface=eth0,eth1 > "${OUTPUT_DIR}/sar.csv"
+sar -n DEV -f "${OUTPUT_DIR}/sar.log" --iface=eth0,dcn1 > "${OUTPUT_DIR}/sar.csv"
 
 echo -e "\n${GREEN}Benchmark completed successfully!${NC}"
