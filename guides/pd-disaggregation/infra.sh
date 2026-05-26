@@ -71,6 +71,7 @@ if ! check_cluster_exists "${CLUSTER}" "${LOCATION}" "${PROJECT_ID}"; then
     --location="${LOCATION}" \
     --gateway-api=standard \
     --monitoring=SYSTEM,DCGM \
+    --machine-type=e2-standard-16 \
     --enable-ip-alias \
     --enable-dataplane-v2 \
     --enable-multi-networking \
@@ -82,7 +83,6 @@ if ! check_cluster_exists "${CLUSTER}" "${LOCATION}" "${PROJECT_ID}"; then
     # Other useful flags (not needed in this setup)
     # --enable-dataplane-v2-metrics  \
     # --enable-dataplane-v2-flow-observability \
-    # --machine-type=n2-standard-8 \
     # --scopes cloud-platform \
     # --enable-ip-access \
 fi
@@ -126,7 +126,7 @@ if ! check_fw_rule_exists "${FW_RULE_NAME_1}" "${PROJECT_ID}"; then
     --project="${PROJECT_ID}" \
     --target-tags="${TARGET_TAG}" \
     --network="${NETWORK_NAME_1}" \
-    --allow=all \
+    --allow=tcp,udp,icmp \
     --source-ranges=35.191.0.0/16,130.211.0.0/22 # Google health check ip range
 fi
 
