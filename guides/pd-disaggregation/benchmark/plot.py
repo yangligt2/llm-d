@@ -91,10 +91,12 @@ def plot_kv_transfer(kv_transfer_log, sar_log="", output_dir='.'):
     ts, prepare_time, pull_time, size = [], [], [], []
     with open(kv_transfer_log, 'r') as f:
         for line in f:
+            if "pull done" not in line:
+                continue
             prefix, _, _, prepare_time_str, pull_time_str, size_str = line.strip().split("|")
-            prepare_time.append(float(prepare_time_str.strip().split('=')[1][:-2]))
-            pull_time.append(float(pull_time_str.strip().split('=')[1][:-2]))
-            size.append(float(size_str.strip().split('=')[1][:-2]))
+            prepare_time.append(float(prepare_time_str.strip().split('=')[1]))
+            pull_time.append(float(pull_time_str.strip().split('=')[1]))
+            size.append(float(size_str.strip().split('=')[1]) / 1024 / 1024)
 
             match = re.search(regex, prefix)
             if match:
@@ -269,7 +271,7 @@ def parse_line(cols):
     req_id = -1
     offset = -1
     bytes = -1
-    is_largest = False
+    is_largest = None
     ts = ""
     bond_id = -1
     for col in cols:
@@ -292,6 +294,8 @@ def parse_line(cols):
             bond_id = int(v)
         elif k == 'buf_size':
             pass
+        elif k == 'buf_id':
+            pass
         else:
             raise ValueError("Unkown " + k)
     return uuid, req_id, offset, bytes, is_largest, ts, bond_id
@@ -300,33 +304,37 @@ def parse_line(cols):
 def parse_jnt_network_metrics(prefill_log, decode_log):
     network_metrics = {}
     uuid_to_req_id = {}
+    uuid_to_await_pull_ts = {}
     for log_file in [prefill_log, decode_log]:
         with open(log_file, 'r') as f:
             for i, line in enumerate(f):
                 if "[metric]" not in line:
                     continue
                 cols = line.strip().split(',')
-                if 'Pull' in cols[0]:
-                    continue
                 uuid, req_id, offset, bytes, is_largest, ts, bond_id = parse_line(cols[1:])
                 if uuid:
                     if uuid not in uuid_to_req_id:
                         uuid_to_req_id[uuid] = set()
-                    uuid_to_req_id[uuid].add(req_id)
+                    if req_id != -1:
+                        uuid_to_req_id[uuid].add(req_id)
 
-                if req_id not in network_metrics:
-                    network_metrics[req_id] = {}
-                req_metrics = network_metrics[req_id]
+                if "SocketServer::AwaitPull" in cols[0]:
+                    assert uuid and ts
+                    uuid_to_await_pull_ts[uuid] = ts
+                    continue
 
-                if offset not in req_metrics:
-                    req_metrics[offset] = {}
-                chunk_metrics = req_metrics[offset]
+                req_metrics = network_metrics.setdefault(req_id, {'ts_send_pull': None, 'chunk_metrics': dict() })
 
-                chunk_metrics.setdefault('bytes', bytes)
-                assert chunk_metrics['bytes'] == bytes
+                if offset != -1:
+                    chunk_metrics = req_metrics['chunk_metrics'].setdefault(offset, dict())
 
-                chunk_metrics.setdefault('is_largest', is_largest)
-                assert chunk_metrics['is_largest'] == is_largest
+                if bytes != -1:
+                    chunk_metrics.setdefault('bytes', bytes)
+                    assert chunk_metrics['bytes'] == bytes
+
+                if is_largest is not None:
+                    chunk_metrics.setdefault('is_largest', is_largest)
+                    assert chunk_metrics['is_largest'] == is_largest, line + ", " + str(i)
 
                 if bond_id != -1:
                     assert chunk_metrics.setdefault('bond_id', bond_id) == bond_id
@@ -346,25 +354,36 @@ def parse_jnt_network_metrics(prefill_log, decode_log):
                 elif 'on_recv' in cols[0]:
                     assert 'ts_on_recv' not in chunk_metrics
                     chunk_metrics['ts_on_recv'] = ts
+                elif 'SocketServer::SocketNetworkState::Pull' in cols[0]:
+                    req_metrics['ts_send_pull'] = ts
+                elif 'SocketServer::SocketNetworkState::HandlePacket SocketTransferPullRequest' in cols[0]:
+                    req_metrics['ts_recv_pull'] = ts
 
     def is_valid_chunk_metrics(chunk_metrics):
-        return 'ts_schedule_copy' in chunk_metrics and 'ts_send' in chunk_metrics and 'ts_on_send' in chunk_metrics and 'ts_on_send_done' in chunk_metrics and 'ts_on_recv' in chunk_metrics and 'is_largest' in chunk_metrics
+        valid = 'ts_schedule_copy' in chunk_metrics and \
+                'ts_send' in chunk_metrics and \
+                'ts_on_send' in chunk_metrics and \
+                'ts_on_send_done' in chunk_metrics and \
+                'ts_on_recv' in chunk_metrics and \
+                'is_largest' in chunk_metrics
+        return valid
 
     def is_valid_req_metrics(req_metrics):
         has_is_largest = False
-        for k, v  in req_metrics.items():
+        for k, v  in req_metrics['chunk_metrics'].items():
             offset = k
             chunk_metrics = v
             if not is_valid_chunk_metrics(chunk_metrics):
                 return False
             has_is_largest = has_is_largest or chunk_metrics['is_largest']
-            # print(has_is_largest, chunk_metrics['is_largest'])
-        return has_is_largest
+        has_ts_send_pull = 'ts_send_pull' in req_metrics and req_metrics['ts_send_pull'] is not None
+        has_ts_recv_pull = 'ts_recv_pull' in req_metrics and req_metrics['ts_recv_pull'] is not None
+        return has_is_largest and has_ts_send_pull and has_ts_recv_pull
 
     print(len(network_metrics))
     ret = {req: req_metrics for req, req_metrics in network_metrics.items() if is_valid_req_metrics(req_metrics)}
     print(len(ret))
-    return ret, uuid_to_req_id
+    return ret, uuid_to_req_id, uuid_to_await_pull_ts
 
 
 def process_network_metrics(net_metrics, uuid_to_req_id):
@@ -406,7 +425,7 @@ def process_network_metrics(net_metrics, uuid_to_req_id):
             ts_on_send_done = None
             ts_on_recv = None
             req_size = 0
-            for offset, chunk_metrics in req_metrics.items():
+            for offset, chunk_metrics in req_metrics['chunk_metrics'].items():
                 chunk_send_ts.append(chunk_metrics['ts_send'])
                 chunk_on_send_ts.append(chunk_metrics['ts_on_send'])
                 chunk_on_send_done_ts.append(chunk_metrics['ts_on_send_done'])
@@ -484,7 +503,7 @@ def plot_jnt_network_metrics(net_metrics, uuid_to_req_id, output_dir='.'):
     kv_send_latency = [(t1 - t0).total_seconds() * 1000 for t0, t1 in zip(kv_send_ts, kv_on_send_done_ts)]
     kv_on_send_done_ts = [(ts - ts_start).total_seconds() for ts in kv_on_send_done_ts]
 
-    fig, axes = plt.subplots(4, 1, figsize=(20, 14), sharex=True)
+    fig, axes = plt.subplots(5, 1, figsize=(20, 14), sharex=True)
     ax = axes[0]
     ax.plot(kv_on_send_done_ts, kv_send_latency, '.-', c='C0')
     ax.set_xlim(0, )
@@ -502,24 +521,32 @@ def plot_jnt_network_metrics(net_metrics, uuid_to_req_id, output_dir='.'):
 
     ax = axes[3]
     ax.plot(kv_on_send_done_ts, np.array(kv_sizes) / 1024 / 1024, '.-', label="KV size")
-    ax.plot(req_on_send_done_ts, np.array(req_sizes) / 1024 / 1024, '.-', label="PjRtBuffer size")
-    ax.plot(chunk_on_send_done_ts, np.array(chunk_sizes) / 1024 / 1024, '.-', label="Chunk size")
     ax.set_ylabel("Sizes (MiB)")
+    ax.legend()
+
+    ax = axes[4]
+    ax.plot(req_on_send_done_ts, np.array(req_sizes) / 1024 / 1024, '.-', c='C1', label="PjRtBuffer size")
+    ax.plot(chunk_on_send_done_ts, np.array(chunk_sizes) / 1024 / 1024, '.-', c='C2', label="Chunk size")
+    ax.set_ylabel("Sizes (MiB)")
+    ax.set_ylim(0, )
     ax.legend()
 
     if output_dir:
         plt.savefig(os.path.join(output_dir, "jnt_lats.png"), bbox_inches='tight')
 
-def plot_per_uuid_ts_dist(network_metrics, uuid_to_req_id):
+
+def plot_per_uuid_ts_dist(network_metrics, uuid_to_req_id, uuid_to_await_pull_ts):
     req_net_metrics = {}
     for req_id, req_metrics in network_metrics.items():
+        ts_send_pull = req_metrics['ts_send_pull']
+        ts_recv_pull = req_metrics['ts_recv_pull']
         ts_schedule_copy = None
         ts_send = None
         ts_on_send = None
         ts_on_send_done = None
         ts_on_recv = None
         req_size = 0
-        for offset, chunk_metrics in req_metrics.items():
+        for offset, chunk_metrics in req_metrics['chunk_metrics'].items():
             ts_schedule_copy = chunk_metrics['ts_schedule_copy'] if ts_send is None else min(chunk_metrics['ts_schedule_copy'], ts_schedule_copy)
             ts_send = chunk_metrics['ts_send'] if ts_send is None else min(chunk_metrics['ts_send'], ts_send)
             ts_on_send = chunk_metrics['ts_on_send'] if ts_on_send is None else min(chunk_metrics['ts_on_send'], ts_on_send)
@@ -533,20 +560,28 @@ def plot_per_uuid_ts_dist(network_metrics, uuid_to_req_id):
         assert ts_on_recv is not None
 
         req_net_metrics[req_id] = {
+                "ts_send_pull": ts_send_pull,
+                "ts_recv_pull": ts_recv_pull,
                 "ts_schedule_copy": ts_schedule_copy,
                 "ts_send": ts_send,
-                                       "ts_on_send": ts_on_send,
-                                       "ts_on_send_done": ts_on_send_done,
-                                       "ts_on_recv": ts_on_recv,
-                                       "size": req_size}
+                "ts_on_send": ts_on_send,
+                "ts_on_send_done": ts_on_send_done,
+                "ts_on_recv": ts_on_recv,
+                "size": req_size}
 
     for uuid, req_ids in uuid_to_req_id.items():
+        ts_await_pull = uuid_to_await_pull_ts[uuid]
+        ts_send_pull = [req_net_metrics[req_id]["ts_send_pull"] for req_id in req_ids]
+        ts_recv_pull = [req_net_metrics[req_id]["ts_recv_pull"] for req_id in req_ids]
         ts_schedule_copy = [req_net_metrics[req_id]["ts_schedule_copy"] for req_id in req_ids]
         ts_send = [req_net_metrics[req_id]["ts_send"] for req_id in req_ids]
         ts_on_send = [req_net_metrics[req_id]["ts_on_send"] for req_id in req_ids]
         ts_on_send_done = [req_net_metrics[req_id]["ts_on_send_done"] for req_id in req_ids]
         ts_on_recv = [req_net_metrics[req_id]["ts_on_recv"] for req_id in req_ids]
-        ts_start = min(ts_schedule_copy)
+        ts_start = min(min(ts_send_pull), ts_await_pull)
+        ts_await_pull = (ts_await_pull - ts_start).total_seconds() * 1000
+        ts_send_pull = sorted([(ts - ts_start).total_seconds() * 1000 for ts in ts_send_pull])
+        ts_recv_pull = sorted([(ts - ts_start).total_seconds() * 1000 for ts in ts_recv_pull])
         ts_schedule_copy = sorted([(ts - ts_start).total_seconds() * 1000 for ts in ts_schedule_copy])
         ts_send = sorted([(ts - ts_start).total_seconds() * 1000 for ts in ts_send])
         ts_on_send = sorted([(ts - ts_start).total_seconds() * 1000 for ts in ts_on_send])
@@ -554,101 +589,36 @@ def plot_per_uuid_ts_dist(network_metrics, uuid_to_req_id):
         ts_on_recv = sorted([(ts - ts_start).total_seconds() * 1000 for ts in ts_on_recv])
 
         plt.figure()
-        fig, ax = plt.subplots(1, 1, figsize=(12, 5))
+        fig, axes = plt.subplots(1, 2, figsize=(20, 5))
+        ax = axes[0]
         ax.set_title(f'kv uuid={uuid}, num of chunks={len(ts_send)}')
-        ax.vlines(ts_schedule_copy, ymin=0.8, ymax=1, color='C0', label='Schedule copy')
-        ax.vlines(ts_send, ymin=0.6, ymax=0.8, color='C1', label='Send')
-        ax.vlines(ts_on_send, ymin=0.4, ymax=0.6, color='C2', label='On send')
-        ax.vlines(ts_on_send_done, ymin=0.2, ymax=0.4, color='C3', label='On send done')
-        ax.vlines(ts_on_recv, ymin=0, ymax=0.2, color='C4', label='On recv')
-        ax.set_ylim(0, 1)
+        ax.vlines(ts_send_pull, ymin=1.4, ymax=1.6, color='C0', label='Decode send pull request')
+        ax.vlines(ts_recv_pull, ymin=1.2, ymax=1.4, color='C1', label='Prefill recv pull request')
+        ax.vlines([ts_await_pull], ymin=1, ymax=1.2, color='C2', label='Prefill await pull')
+        ax.vlines(ts_schedule_copy, ymin=0.8, ymax=1, color='C3', label='Prefill schedule copy')
+        ax.vlines(ts_send, ymin=0.6, ymax=0.8, color='C4', label='Prefill send')
+        ax.vlines(ts_on_send, ymin=0.4, ymax=0.6, color='C5', label='Prefill on send')
+        ax.vlines(ts_on_send_done, ymin=0.2, ymax=0.4, color='C6', label='Prefill on send done')
+        ax.vlines(ts_on_recv, ymin=0, ymax=0.2, color='C7', label='Decode on recv')
+        ax.set_ylim(0, 1.4)
         ax.set_xlim(0, )
         ax.set_xlabel('Time(ms)')
         ax.set_yticks([])
+        ax.legend(loc='lower left')
+
+        ax = axes[1]
+        ax.set_title(f'kv uuid={uuid}, num of chunks={len(ts_send)}')
+        ax.vlines([ts_await_pull], ymin=1, ymax=1.2, color='C2', label='Prefill await pull')
+        ax.vlines(ts_schedule_copy, ymin=0.8, ymax=1, color='C3', label='Prefill schedule copy')
+        ax.vlines(ts_send, ymin=0.6, ymax=0.8, color='C4', label='Prefill send')
+        ax.vlines(ts_on_send, ymin=0.4, ymax=0.6, color='C5', label='Prefill on send')
+        ax.vlines(ts_on_send_done, ymin=0.2, ymax=0.4, color='C6', label='Prefill on send done')
+        ax.vlines(ts_on_recv, ymin=0, ymax=0.2, color='C7', label='Decode on recv')
+        ax.set_ylim(0, 1.4)
+        ax.set_xlim(min(ts_schedule_copy) - 10, )
+        ax.set_xlabel('Time(ms)')
+        ax.set_yticks([])
         ax.legend()
-
-
-
-# def plot_jnt_network_metrics(net_metrics, uuid_to_req_id, output_dir='.'):
-#     xvals = []
-#     net_lats = []
-#     send_lats = []
-#     send_e2e_lats = []
-#     sizes = []
-#     req_lats = []
-#     req_recv_ts = []
-#     for req_id, req_metrics in net_metrics.items():
-#         ts_send = []
-#         ts_on_recv = []
-#         for offset, v in req_metrics.items():
-#             xvals.append(v['ts_on_recv'])
-#             send_e2e_lats.append((v['ts_on_recv'] - v['ts_send']).total_seconds() * 1000)
-#             net_lat = (v['ts_on_recv'] - v['ts_on_send']).total_seconds() * 1000
-#             net_lats.append(net_lat)
-#             send_lat = (v['ts_on_send_done'] - v['ts_on_send']).total_seconds() * 1000
-#             send_lats.append(send_lat)
-#             sizes.append(v['bytes'] / 1024 / 1024)
-
-#             ts_send.append(v['ts_send'])
-#             ts_on_recv.append(v['ts_on_recv'])
-#         req_recv_ts.append(max(ts_on_recv))
-#         req_lats.append((max(ts_on_recv) - min(ts_send)).total_seconds() * 1000)
-
-#     uuid_lats = []
-#     uuid_recv_ts = []
-#     for uuid, req_ids in uuid_to_req_id.items():
-#         ts_send = []
-#         ts_on_send_done = []
-#         ts_on_recv = []
-#         for req_id in req_ids:
-#             for offset, v in net_metrics[req_id].items():
-#                 ts_send.append(v['ts_send'])
-#                 ts_on_send_done.append(v['ts_on_send_done'])
-#                 ts_on_recv.append(v['ts_on_recv'])
-#         uuid_lats.append((max(ts_on_recv) - min(ts_send)).total_seconds() * 1000)
-#         uuid_recv_ts.append(max(ts_on_recv))
-
-#     sorted_tuples = sorted(zip(xvals, net_lats, send_lats, sizes))
-#     xvals, net_lats, send_lats, sizes = zip(*sorted_tuples)
-#     xvals, net_lats, send_lats, sizes = list(xvals), list(net_lats), list(send_lats), list(sizes)
-#     ts_start = xvals[0]
-#     xvals = [(x - ts_start).total_seconds() for x in xvals]
-#     fig, axes = plt.subplots(5, 1, figsize=(20, 14), sharex=True)
-#     ax = axes[0]
-#     ax.plot(xvals, send_e2e_lats, '.-', label="Chunk network transfer latency + queuing")
-#     uuid_xvals = [(x - ts_start).total_seconds() for x in uuid_recv_ts]
-#     ax.plot(uuid_xvals, uuid_lats, '.-', label="UUID network transfer latency + queuing")
-#     ax.set_xlim(0, )
-#     ax.set_ylabel("Latency (ms)")
-#     ax.legend()
-
-#     ax = axes[1]
-#     ax.plot(xvals, net_lats, '.-', label="Chunk network transfer latency")
-#     ax.set_xlim(0, )
-#     ax.set_ylabel("Latency (ms)")
-#     ax.legend()
-
-#     ax = axes[2]
-#     ax.plot(xvals, send_lats, '.-', label="Chunk send latency")
-#     ax.set_ylabel("Latency (ms)")
-#     ax.legend()
-
-#     ax = axes[3]
-#     ax.plot(xvals, sizes, '.-', label="Chunk size")
-#     ax.set_ylabel("Chunk sizes (MiB)")
-#     ax.legend()
-
-#     ax.set_xlim(0, )
-
-#     ax = axes[4]
-#     req_recv_ts = [(x - ts_start).total_seconds() for x in req_recv_ts]
-#     ax.plot(req_recv_ts, req_lats, '.-')
-#     print(len(req_lats), len(xvals))
-#     ax.set_ylabel('PjRtBuffer network transfer latency (ms)')
-#     ax.set_xlabel("Time (s)")
-
-#     if output_dir:
-#         plt.savefig(os.path.join(output_dir, "jnt_lats.png"), bbox_inches='tight')
 
 
 def main():
