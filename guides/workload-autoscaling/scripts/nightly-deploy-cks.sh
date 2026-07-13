@@ -31,6 +31,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 source "${REPO_ROOT}/guides/env.sh"
 
 NAMESPACE="${NAMESPACE:-llm-d-optimized-baseline}"
+SCALEDOBJECT=optimized-baseline-nvidia-gpu-vllm-decode-scaler
 WVA_TAG="${WVA_TAG:-}"
 OUTPUT_DIR="${OUTPUT_DIR:-$(mktemp -d -t nightly-deploy-cks.XXXXXX)}"
 PROMETHEUS_ADDRESS="${PROMETHEUS_ADDRESS:-https://prometheus-operated.llm-d-monitoring.svc.cluster.local:9090}"
@@ -60,7 +61,7 @@ kind: Kustomization
 namespace: ${NAMESPACE}
 resources:
   - ${REL}/guides/workload-autoscaling/wva-config/platform/k8s/
-  - ${REL}/guides/workload-autoscaling/optimized-baseline-autoscaling/keda/
+  - ${REL}/guides/workload-autoscaling/optimized-baseline-autoscaling/keda/k8s/
 patches:
   # The namespace and Prometheus endpoint live inside KEDA trigger strings, so the kustomize
   # namespace transformer cannot reach them — rewrite them explicitly.
@@ -69,7 +70,7 @@ patches:
         path: /spec/triggers/0/metadata/query
         value: |
           wva_desired_replicas{
-            variant_name="optimized-baseline-nvidia-gpu-vllm-decode",
+            variant_name="optimized-baseline-nvidia-gpu-vllm-decode-scaler",
             namespace="${NAMESPACE}"
           }
       - op: replace
@@ -78,6 +79,16 @@ patches:
       - op: replace
         path: /spec/maxReplicaCount
         value: 2
+      # The deployment starts at 2 replicas while WVA, seeing no traffic yet, asks for 1. KEDA
+      # would scale down within the 60s guide default — mid-startup, while the workflow is still
+      # waiting on the pods it listed before the scale-down, which then fails on a NotFound.
+      # Hold scale-down off until the stack is up and the benchmark is driving load.
+      # TODO: interim. The real fix is to start the deployment at 1 replica (the floor WVA asks
+      # for when idle) and let the benchmark drive scale-up, rather than pinning 2 and delaying
+      # the scale-down that follows.
+      - op: replace
+        path: /spec/advanced/horizontalPodAutoscalerConfig/behavior/scaleDown/stabilizationWindowSeconds
+        value: 900
     target:
       kind: ScaledObject
       name: optimized-baseline-nvidia-gpu-vllm-decode-scaler
@@ -111,8 +122,39 @@ kubectl wait deployment/wva-controller-manager \
   -n "${NAMESPACE}" --for=condition=Available --timeout=300s
 
 echo "==> Waiting for the ScaledObject to be Ready"
-kubectl wait scaledobject/optimized-baseline-nvidia-gpu-vllm-decode-scaler \
+# Ready only means KEDA accepted the trigger and created its HPA — not that the metric works.
+kubectl wait scaledobject/"${SCALEDOBJECT}" \
   -n "${NAMESPACE}" --for=condition=Ready --timeout=300s
+
+# If KEDA cannot query Prometheus it suppresses the error and serves `fallback: replicas`, so the
+# stack comes up healthy and the ScaledObject still reports Ready=True/Active=True. Fallback=False
+# is the only signal that the replica count actually comes from WVA.
+# Require Fallback=False to HOLD: it reads False before KEDA's first poll, and WVA needs a
+# scrape cycle to publish the metric, so early readings are meaningless in both directions.
+echo "==> Verifying KEDA is scaling on the real metric (not fallback)"
+streak=0
+for _ in $(seq 1 30); do
+  fallback="$(kubectl get scaledobject/"${SCALEDOBJECT}" -n "${NAMESPACE}" \
+    -o jsonpath='{.status.conditions[?(@.type=="Fallback")].status}' 2>/dev/null || true)"
+  if [[ "${fallback}" == "False" ]]; then
+    streak=$((streak + 1))
+    [[ "${streak}" -ge 3 ]] && break
+  else
+    streak=0
+  fi
+  sleep 10
+done
+
+if [[ "${streak}" -lt 3 ]]; then
+  echo "ERROR: ScaledObject is in fallback (Fallback=${fallback:-unknown}) — KEDA is NOT reading" >&2
+  echo "       wva_desired_replicas. Replica count is coming from spec.fallback, not from WVA." >&2
+  kubectl get scaledobject/"${SCALEDOBJECT}" -n "${NAMESPACE}" \
+    -o jsonpath='{range .status.conditions[*]}  {.type}={.status} ({.reason}: {.message}){"\n"}{end}' >&2
+  echo "--- KEDA operator errors for this ScaledObject ---" >&2
+  kubectl logs -A -l app=keda-operator --tail=200 2>/dev/null \
+    | grep -i "${NAMESPACE}" | tail -10 >&2 || true
+  exit 1
+fi
 
 echo "==> Listing autoscaling resources"
 kubectl get scaledobject,hpa -n "${NAMESPACE}"
